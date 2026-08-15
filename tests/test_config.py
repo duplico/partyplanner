@@ -167,6 +167,16 @@ def test_mixed_aware_and_naive_times_rejected():
         config.parse(_minimal(events=events))
 
 
+def test_invalid_revoked_token_rejected():
+    with pytest.raises(ConfigError, match="revoked token"):
+        config.parse(_minimal(revoked=["NOT-A-TOKEN"]))
+
+
+def test_duplicate_revoked_tokens_rejected():
+    with pytest.raises(ConfigError, match="duplicate revoked"):
+        config.parse(_minimal(revoked=["fixturetokenrevoked2", "fixturetokenrevoked2"]))
+
+
 def test_malformed_yaml_raises_config_error(tmp_path: Path):
     src = tmp_path / "occasion.yaml"
     src.write_text("title: [unclosed\n")

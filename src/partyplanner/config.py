@@ -119,6 +119,17 @@ class Occasion(BaseModel):
             raise ValueError(f"domain {v!r} is not a valid lowercase hostname")
         return v
 
+    @field_validator("revoked")
+    @classmethod
+    def _check_revoked(cls, v: list[str]) -> list[str]:
+        for t in v:
+            if not TOKEN_RE.match(t):
+                raise ValueError(f"revoked token {t!r} is not lowercase base32 of 16-64 chars")
+        dupes = {t for t in v if v.count(t) > 1}
+        if dupes:
+            raise ValueError(f"duplicate revoked tokens: {sorted(dupes)}")
+        return v
+
     @field_validator("timezone")
     @classmethod
     def _check_timezone(cls, v: str) -> str:

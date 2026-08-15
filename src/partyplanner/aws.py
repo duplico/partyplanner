@@ -1,8 +1,9 @@
 """Sync link records from an occasion config into the occasion's DynamoDB table.
 
 Link items are the API's source of truth for which tokens are live, what they can
-RSVP to, and name prefill. Revoked tokens are deleted, which kills the API for
-them even if a cached page lingers.
+RSVP to, and name prefill. Any record whose token is no longer an active link in
+the config (revoked or simply removed) is deleted, which kills the API for it
+even if a cached page lingers.
 """
 
 from __future__ import annotations
@@ -34,18 +35,35 @@ def link_items(occasion: Occasion) -> list[dict]:
     return items
 
 
+def _existing_link_pks(table) -> set[str]:
+    pks: set[str] = set()
+    kwargs: dict = {}
+    while True:
+        page = table.scan(ProjectionExpression="pk, sk", **kwargs)
+        pks.update(
+            str(item["pk"])
+            for item in page["Items"]
+            if str(item.get("pk", "")).startswith("LINK#") and item.get("sk") == "META"
+        )
+        if "LastEvaluatedKey" not in page:
+            return pks
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+
 def sync_links(occasion: Occasion, table_name: str) -> tuple[int, int]:
-    """Upsert link items for active links; delete items for revoked tokens."""
+    """Upsert link items for active links; delete records for any other token."""
     import boto3
 
     table = boto3.resource("dynamodb").Table(table_name)
     items = link_items(occasion)
+    active = {item["pk"] for item in items}
+    stale = (_existing_link_pks(table) | {f"LINK#{t}" for t in occasion.revoked}) - active
     with table.batch_writer() as batch:
         for item in items:
             batch.put_item(Item=item)
-        for token in occasion.revoked:
-            batch.delete_item(Key={"pk": f"LINK#{token}", "sk": "META"})
-    return len(items), len(occasion.revoked)
+        for pk in sorted(stale):
+            batch.delete_item(Key={"pk": pk, "sk": "META"})
+    return len(items), len(stale)
 
 
 def export_rsvps(table_name: str) -> list[dict]:

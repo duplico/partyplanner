@@ -73,7 +73,7 @@ def links(config_path: Path) -> None:
 @click.argument("config_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--table", "table_name", required=True, help="Occasion DynamoDB table name.")
 def sync_links(config_path: Path, table_name: str) -> None:
-    """Upsert link records into DynamoDB and delete revoked ones."""
+    """Upsert link records into DynamoDB and delete revoked/removed ones."""
     from .aws import sync_links as do_sync
 
     occasion = _load(config_path)
@@ -81,8 +81,8 @@ def sync_links(config_path: Path, table_name: str) -> None:
         config_mod.require_complete(occasion, config_path)
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
-    active, revoked = do_sync(occasion, table_name)
-    click.echo(f"synced {active} links, removed {revoked} revoked tokens")
+    active, stale = do_sync(occasion, table_name)
+    click.echo(f"synced {active} links, removed {stale} stale tokens")
 
 
 @main.command("export-rsvps")
