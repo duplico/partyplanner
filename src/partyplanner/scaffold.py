@@ -38,12 +38,17 @@ def _check(pattern: re.Pattern[str], value: str, what: str) -> str:
     return value
 
 
-def _write(path: Path, content: str) -> Path:
-    if path.exists():
-        raise ConfigError(f"refusing to overwrite existing {path}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    return path
+def _write_all(files: list[tuple[Path, str]]) -> list[Path]:
+    """Write all files or none: existence is checked up front so a collision
+    on any target leaves nothing half-created."""
+    existing = [path for path, _ in files if path.exists()]
+    if existing:
+        listing = ", ".join(str(p) for p in existing)
+        raise ConfigError(f"refusing to overwrite existing {listing}")
+    for path, content in files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    return [path for path, _ in files]
 
 
 def scaffold_bootstrap(
@@ -75,7 +80,7 @@ def scaffold_bootstrap(
         region=region,
         ref=ref,
     )
-    return [_write(root / "bootstrap" / "main.tf", content)]
+    return _write_all([(root / "bootstrap" / "main.tf", content)])
 
 
 def scaffold_occasion(
@@ -123,9 +128,11 @@ def scaffold_occasion(
     def render(template: str) -> str:
         return _env.get_template(template).render(**ctx)
 
-    return [
-        _write(occasion_dir / "occasion.yaml", render("occasion.yaml.j2")),
-        _write(occasion_dir / "terraform" / "main.tf", render("occasion_main.tf.j2")),
-        _write(workflows / f"deploy-{name}.yml", render("deploy_workflow.yml.j2")),
-        _write(workflows / f"destroy-{name}.yml", render("destroy_workflow.yml.j2")),
-    ]
+    return _write_all(
+        [
+            (occasion_dir / "occasion.yaml", render("occasion.yaml.j2")),
+            (occasion_dir / "terraform" / "main.tf", render("occasion_main.tf.j2")),
+            (workflows / f"deploy-{name}.yml", render("deploy_workflow.yml.j2")),
+            (workflows / f"destroy-{name}.yml", render("destroy_workflow.yml.j2")),
+        ]
+    )

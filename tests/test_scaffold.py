@@ -44,6 +44,8 @@ def test_scaffolded_workflows_parse_and_wire_inputs(tmp_path):
         assert job["with"]["occasion_dir"] == "occasions/bbq-2026"
         assert job["with"]["tf_state_bucket"] == "my-tf-state"
         assert job["with"]["role_to_assume"].startswith("arn:aws:iam::")
+        assert job["with"]["partyplanner_ref"] == "default"
+        assert job["with"]["aws_region"] == "us-east-1"
     assert deploy["on"]["push"]["paths"] == ["occasions/bbq-2026/**"]
     assert destroy["on"] == "workflow_dispatch"
 
@@ -60,6 +62,15 @@ def test_scaffold_occasion_refuses_overwrite(tmp_path):
     _occasion(tmp_path)
     with pytest.raises(ConfigError, match="refusing to overwrite"):
         _occasion(tmp_path)
+
+
+def test_scaffold_occasion_is_all_or_nothing(tmp_path):
+    conflict = tmp_path / ".github" / "workflows" / "deploy-bbq-2026.yml"
+    conflict.parent.mkdir(parents=True)
+    conflict.write_text("# preexisting\n")
+    with pytest.raises(ConfigError, match="deploy-bbq-2026.yml"):
+        _occasion(tmp_path)
+    assert not (tmp_path / "occasions").exists()
 
 
 @pytest.mark.parametrize(
