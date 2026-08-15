@@ -1,0 +1,14 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<header>
+  {% if occasion_photo %}<img class="hero" src="{{ occasion_photo }}" alt="">{% endif %}
+  <h1>{{ occasion.title }}</h1>
+</header>
+{% if landing %}
+  {% if landing.blurb %}<p class="blurb">{{ landing.blurb }}</p>{% endif %}
+  {% if landing_photo %}<img class="hero" src="{{ landing_photo }}" alt="">{% endif %}
+  {% if embed_html %}<div class="embed">{{ embed_html | safe }}</div>{% endif %}
+{% else %}
+  <p class="blurb">If you're looking for your invitation, ask your host for your link.</p>
+{% endif %}
+{% endblock %}

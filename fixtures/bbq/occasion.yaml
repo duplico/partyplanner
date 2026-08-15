@@ -1,0 +1,17 @@
+# The degenerate case: one event, one shared link.
+# All tokens and addresses in fixtures are fake.
+title: BBQ Saturday
+domain: bbq.example.com
+timezone: America/Chicago
+photo: ./assets/bbq.svg
+blurb: |
+  Burgers, yard games, bring a chair. Kids and dogs welcome.
+events:
+  - id: bbq
+    title: BBQ
+    when: 2026-06-20 15:00
+    where: 123 Example Ave
+links:
+  - token: fixturebbqgroupchat2
+    note: group chat link, forward freely
+    scope: all

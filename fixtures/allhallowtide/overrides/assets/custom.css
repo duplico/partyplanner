@@ -1,0 +1,4 @@
+/* Example per-occasion override: replaces the empty assets/custom.css. */
+:root { --accent: #f28c28; --bg: #16101f; --ink: #f3ecdf; --muted: #b3a89a; --card: #241a33; }
+.rsvp { border-top-color: #3a2b52; }
+.rsvp-form input, .rsvp-form select { background: #16101f; color: #f3ecdf; border-color: #3a2b52; }

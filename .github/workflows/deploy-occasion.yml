@@ -1,0 +1,100 @@
+# Reusable workflow: render + deploy one occasion from a consumer repo.
+#
+# Expects the caller repo to contain, under `occasion_dir`:
+#   occasion.yaml        the occasion config (already minted; run `partyplanner mint` locally)
+#   terraform/           a root module instantiating partyplanner's occasion module,
+#                        with outputs bucket, distribution_id, table_name passed through.
+name: deploy-occasion
+
+on:
+  workflow_call:
+    inputs:
+      occasion_dir:
+        description: Path to the occasion directory in the caller repo.
+        required: true
+        type: string
+      aws_region:
+        description: AWS region to deploy into.
+        required: false
+        type: string
+        default: us-east-1
+      partyplanner_ref:
+        description: Git ref of duplico/partyplanner to install and deploy with.
+        required: false
+        type: string
+        default: default
+      role_to_assume:
+        description: IAM role ARN for OIDC auth (preferred over static keys).
+        required: false
+        type: string
+        default: ""
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # One deploy or destroy at a time per occasion; queued runs wait rather
+    # than cancel so the newest config still lands last.
+    concurrency:
+      group: occasion-${{ github.repository }}-${{ inputs.occasion_dir }}
+      cancel-in-progress: false
+    # Caller-provided inputs reach shell steps only through quoted environment
+    # variables, never direct ${{ }} interpolation into shell source.
+    env:
+      OCCASION_DIR: ${{ inputs.occasion_dir }}
+      PARTYPLANNER_REF: ${{ inputs.partyplanner_ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+
+      - name: Install partyplanner
+        run: >
+          uv tool install
+          "partyplanner[aws] @ git+https://github.com/duplico/partyplanner@${PARTYPLANNER_REF}"
+
+      - name: Render site
+        run: |
+          partyplanner validate "${OCCASION_DIR}/occasion.yaml"
+          partyplanner render "${OCCASION_DIR}/occasion.yaml" --out out
+
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          aws-region: ${{ inputs.aws_region }}
+          role-to-assume: ${{ inputs.role_to_assume }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Terraform apply
+        run: |
+          terraform -chdir="${OCCASION_DIR}/terraform" init -input=false
+          terraform -chdir="${OCCASION_DIR}/terraform" apply -input=false -auto-approve
+
+      - name: Sync links and site
+        run: |
+          tf() { terraform -chdir="${OCCASION_DIR}/terraform" output -raw "$1"; }
+          partyplanner sync-links "${OCCASION_DIR}/occasion.yaml" --table "$(tf table_name)"
+          aws s3 sync out/site "s3://$(tf bucket)" --delete
+          aws cloudfront create-invalidation --distribution-id "$(tf distribution_id)" --paths "/*"
+          echo "deployed $(tf site_url)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload invitation links
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: links-${{ github.run_number }}
+          path: out/links.csv

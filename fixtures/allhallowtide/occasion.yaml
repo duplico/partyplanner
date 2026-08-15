@@ -1,0 +1,63 @@
+# The maximal case: multi-day occasion, scoped links, landing embed, rotation.
+# All tokens and addresses in fixtures are fake.
+title: Allhallowtide 2026
+domain: 2026.allhallowtide.example.com
+timezone: America/Chicago
+photo: ./assets/hero.svg
+blurb: |
+  Fifteenth year at the house. Thousands of trick-or-treaters. You know the drill.
+landing:
+  blurb: Watch the live stream of the trick-or-treating madness.
+  embed: ./stream-embed.html
+events:
+  - id: dinner
+    title: Travelers Dinner
+    when: 2026-10-30 18:30
+    where: 123 Example Ave
+    blurb: Dinner for out-of-town visitors before the weekend kicks off.
+  - id: crawl
+    title: Sci-Fi Bar Crawl
+    when: 2026-10-30 21:00
+    where: Downtown, first stop TBA
+    blurb: Costumes required. Warp speed optional.
+  - id: candy
+    title: Candy Crew
+    when: 2026-10-31 17:00
+    where: 123 Example Ave
+    blurb: |
+      Not a full party — we need hands. Candy management and crowd control
+      for literally thousands of trick-or-treaters.
+  - id: party
+    title: Main Party
+    when: 2026-10-31 20:00
+    where: 123 Example Ave
+    blurb: |
+      Fixed start time. Heads up: the neighborhood traffic is intense until
+      trick-or-treating winds down.
+  - id: stream
+    title: Watch the Live Stream
+    rsvp: none
+    blurb: Can't make it? Watch the madness live.
+  - id: brunch
+    title: Sunday Brunch
+    when: 2026-11-01 11:00
+    where: 123 Example Ave
+scopes:
+  full: [dinner, crawl, candy, party, stream, brunch]
+  party-only: [candy, party, stream]
+links:
+  - token: fixtureaaronfull2222
+    prefill_name: Aaron
+    scope: full
+  - token: fixturechanceparty22
+    prefill_name: Chance
+    scope: party-only
+    note: asked to forward to Steve and James
+  - token: fixturegenericparty2
+    scope: party-only
+    note: generic party link for late adds
+  - token: fixturestreamonly222
+    scope: [stream]
+    note: stream-only spectators
+revoked:
+  - fixturerevokedtoken2
