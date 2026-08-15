@@ -1,6 +1,25 @@
+import pytest
+
 from conftest import FIXTURES
 from partyplanner import config
 from partyplanner.aws import link_items
+from partyplanner.cli import _defang
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("=1+2", "'=1+2"),
+        ("+SUM(A1)", "'+SUM(A1)"),
+        ("-2", "'-2"),
+        ("@cmd", "'@cmd"),
+        ("Aaron", "Aaron"),
+        ("", ""),
+        (3, 3),
+    ],
+)
+def test_defang_csv_cells(value, expected):
+    assert _defang(value) == expected
 
 
 def test_link_items_allhallowtide():

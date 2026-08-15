@@ -85,6 +85,13 @@ def sync_links(config_path: Path, table_name: str) -> None:
     click.echo(f"synced {active} links, removed {revoked} revoked tokens")
 
 
+def _defang(value: object) -> object:
+    """Neutralize spreadsheet formula injection in guest-controlled CSV cells."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 @main.command("export-rsvps")
 @click.option("--table", "table_name", required=True, help="Occasion DynamoDB table name.")
 def export_rsvps(table_name: str) -> None:
@@ -97,7 +104,7 @@ def export_rsvps(table_name: str) -> None:
     fields = ["event_id", "name", "response", "party_size", "created_at", "updated_at", "via_token"]
     writer = csv.DictWriter(sys.stdout, fieldnames=fields)
     writer.writeheader()
-    writer.writerows(rows)
+    writer.writerows({k: _defang(v) for k, v in row.items()} for row in rows)
 
 
 if __name__ == "__main__":

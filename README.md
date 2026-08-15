@@ -109,7 +109,10 @@ in the bootstrap module.
   ```
 
 - `modules/bootstrap` — run once per AWS account: hosted zones (delegate your
-  domains to the emitted name servers) and a monthly budget alarm.
+  domains to the emitted name servers) and a monthly budget alarm. See
+  [docs/bootstrapping.md](docs/bootstrapping.md) for the full account setup
+  playbook (state bucket, zones, DNS delegation, OIDC role, consumer repo
+  wiring).
 
 ### Deploying from a consumer repo
 

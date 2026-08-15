@@ -80,7 +80,11 @@ def parse_rsvp(body: dict) -> dict:
 def get_link(token: str) -> dict | None:
     if not isinstance(token, str) or not TOKEN_RE.match(token):
         return None
-    item = table().get_item(Key={"pk": f"LINK#{token}", "sk": "META"}).get("Item")
+    # Strongly consistent so a just-revoked or just-restricted link takes
+    # effect immediately after sync-links.
+    item = (
+        table().get_item(Key={"pk": f"LINK#{token}", "sk": "META"}, ConsistentRead=True).get("Item")
+    )
     return item
 
 

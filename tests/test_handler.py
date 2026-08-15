@@ -99,7 +99,8 @@ class FakeTable:
         self.rsvps = rsvps or {}
         self.updates = []
 
-    def get_item(self, Key):
+    def get_item(self, Key, ConsistentRead=False):
+        self.consistent_reads = getattr(self, "consistent_reads", []) + [ConsistentRead]
         item = self.links.get(Key["pk"])
         return {"Item": item} if item else {}
 
@@ -157,6 +158,13 @@ def test_put_rsvp_scope_enforced(monkeypatch):
     with pytest.raises(handler.BadRequest, match="cannot RSVP"):
         handler.put_rsvp(handler.parse_rsvp(_rsvp_body(token="fixturestreamonly222")))
     assert table.updates == []
+
+
+def test_get_link_uses_consistent_read(monkeypatch):
+    table = FakeTable(links={"LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]}})
+    monkeypatch.setattr(handler, "table", lambda: table)
+    assert handler.get_link("fixturebbqgroupchat2") is not None
+    assert table.consistent_reads == [True]
 
 
 def test_put_rsvp_unknown_token(monkeypatch):
