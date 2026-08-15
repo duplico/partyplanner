@@ -39,6 +39,11 @@ jobs:
     concurrency:
       group: occasion-${{ github.repository }}-${{ inputs.occasion_dir }}
       cancel-in-progress: false
+    # Caller-provided inputs reach shell steps only through quoted environment
+    # variables, never direct ${{ }} interpolation into shell source.
+    env:
+      OCCASION_DIR: ${{ inputs.occasion_dir }}
+      PARTYPLANNER_REF: ${{ inputs.partyplanner_ref }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -49,7 +54,7 @@ jobs:
       - name: Install partyplanner
         run: >
           uv tool install
-          "partyplanner[aws] @ git+https://github.com/duplico/partyplanner@${{ inputs.partyplanner_ref }}"
+          "partyplanner[aws] @ git+https://github.com/duplico/partyplanner@${PARTYPLANNER_REF}"
 
       - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
@@ -65,8 +70,8 @@ jobs:
 
       - name: Export final RSVP snapshot
         run: |
-          terraform -chdir="${{ inputs.occasion_dir }}/terraform" init -input=false
-          table="$(terraform -chdir="${{ inputs.occasion_dir }}/terraform" output -raw table_name)"
+          terraform -chdir="${OCCASION_DIR}/terraform" init -input=false
+          table="$(terraform -chdir="${OCCASION_DIR}/terraform" output -raw table_name)"
           partyplanner export-rsvps --table "$table" > rsvps-final.csv
 
       - name: Upload RSVP snapshot
@@ -77,4 +82,4 @@ jobs:
           retention-days: 90
 
       - name: Terraform destroy
-        run: terraform -chdir="${{ inputs.occasion_dir }}/terraform" destroy -input=false -auto-approve
+        run: terraform -chdir="${OCCASION_DIR}/terraform" destroy -input=false -auto-approve

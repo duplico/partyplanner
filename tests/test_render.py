@@ -58,6 +58,16 @@ def test_asset_path_escaping_config_dir_rejected(tmp_path: Path):
         render(occasion, config_dir, tmp_path / "out")
 
 
+def test_asset_symlink_escaping_config_dir_rejected(tmp_path: Path):
+    (tmp_path / "secret.svg").write_text("<svg>secret</svg>")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "sneaky.svg").symlink_to(tmp_path / "secret.svg")
+    occasion = _asset_occasion(config_dir, photo="sneaky.svg")
+    with pytest.raises(ConfigError, match="escapes"):
+        render(occasion, config_dir, tmp_path / "out")
+
+
 def test_embed_path_escaping_config_dir_rejected(tmp_path: Path):
     (tmp_path / "private.html").write_text("secret")
     config_dir = tmp_path / "config"

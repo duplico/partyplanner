@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import csv
 import datetime as dt
 import shutil
 from pathlib import Path
 
+from defusedcsv import csv
 from jinja2 import Environment, PackageLoader
 
 from .config import ConfigError, Occasion, require_complete
@@ -67,7 +67,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
     (site / "robots.txt").write_text("User-agent: *\nDisallow: /\n")
 
     def asset(rel: str | None) -> str | None:
-        return _copy_asset(config_dir / rel, rel, img_dir) if rel else None
+        return _copy_asset(_contained(config_dir, rel), rel, img_dir) if rel else None
 
     occasion_photo = asset(occasion.photo)
 
