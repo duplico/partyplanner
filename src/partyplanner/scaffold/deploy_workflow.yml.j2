@@ -1,0 +1,17 @@
+name: deploy-{{ name }}
+on:
+  push:
+    branches: [{{ branch }}]
+    paths: ["occasions/{{ name }}/**"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    uses: duplico/partyplanner/.github/workflows/deploy-occasion.yml@{{ ref }}
+    with:
+      occasion_dir: occasions/{{ name }}
+      role_to_assume: {{ role_arn }}
+      tf_state_bucket: {{ state_bucket }}

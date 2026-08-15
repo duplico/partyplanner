@@ -85,6 +85,100 @@ def sync_links(config_path: Path, table_name: str) -> None:
     click.echo(f"synced {active} links, removed {stale} stale tokens")
 
 
+@main.group()
+def scaffold() -> None:
+    """Generate consumer (events) repo skeleton files."""
+
+
+@scaffold.command("bootstrap")
+@click.option("--dir", "root", type=click.Path(path_type=Path), default=Path("."))
+@click.option("--zone", "zones", multiple=True, required=True, help="Domain to host (repeatable).")
+@click.option("--budget-email", required=True, help="Email for budget alerts.")
+@click.option("--budget-limit", default=10, show_default=True, help="Monthly budget in USD.")
+@click.option("--github-repo", required=True, help="This events repo, as ORG/REPO (for OIDC).")
+@click.option("--branch", default="default", show_default=True, help="Deployable branch.")
+@click.option("--region", default="us-east-1", show_default=True)
+@click.option("--ref", default="default", show_default=True, help="partyplanner ref to pin.")
+def scaffold_bootstrap_cmd(
+    root: Path,
+    zones: tuple[str, ...],
+    budget_email: str,
+    budget_limit: int,
+    github_repo: str,
+    branch: str,
+    region: str,
+    ref: str,
+) -> None:
+    """Write bootstrap/main.tf (hosted zones, budget alarm, OIDC deploy role)."""
+    from .scaffold import scaffold_bootstrap
+
+    try:
+        paths = scaffold_bootstrap(
+            root,
+            zones=list(zones),
+            budget_email=budget_email,
+            budget_limit=budget_limit,
+            github_repo=github_repo,
+            branch=branch,
+            region=region,
+            ref=ref,
+        )
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
+    for path in paths:
+        click.echo(f"wrote {path}")
+    click.echo(
+        "next: cd bootstrap && "
+        'terraform init -backend-config="bucket=$TF_STATE_BUCKET" && terraform apply'
+    )
+
+
+@scaffold.command("occasion")
+@click.argument("name")
+@click.option("--dir", "root", type=click.Path(path_type=Path), default=Path("."))
+@click.option("--domain", required=True, help="Site domain, e.g. bbq-2026.events.example.com.")
+@click.option("--zone-id", required=True, help="Route53 zone id (bootstrap zone_ids output).")
+@click.option("--role-arn", required=True, help="Deploy role ARN (bootstrap deploy_role_arn).")
+@click.option("--state-bucket", required=True, help="Terraform state bucket name.")
+@click.option("--timezone", default="America/Chicago", show_default=True)
+@click.option("--branch", default="default", show_default=True, help="Deployable branch.")
+@click.option("--region", default="us-east-1", show_default=True)
+@click.option("--ref", default="default", show_default=True, help="partyplanner ref to pin.")
+def scaffold_occasion_cmd(
+    name: str,
+    root: Path,
+    domain: str,
+    zone_id: str,
+    role_arn: str,
+    state_bucket: str,
+    timezone: str,
+    branch: str,
+    region: str,
+    ref: str,
+) -> None:
+    """Write occasions/NAME (config stub, Terraform root) and its workflows."""
+    from .scaffold import scaffold_occasion
+
+    try:
+        paths = scaffold_occasion(
+            root,
+            name,
+            domain=domain,
+            zone_id=zone_id,
+            role_arn=role_arn,
+            state_bucket=state_bucket,
+            timezone=timezone,
+            branch=branch,
+            region=region,
+            ref=ref,
+        )
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
+    for path in paths:
+        click.echo(f"wrote {path}")
+    click.echo(f"next: edit occasions/{name}/occasion.yaml, then partyplanner mint it")
+
+
 @main.command("export-rsvps")
 @click.option("--table", "table_name", required=True, help="Occasion DynamoDB table name.")
 def export_rsvps(table_name: str) -> None:
