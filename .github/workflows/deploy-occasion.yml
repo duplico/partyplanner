@@ -28,6 +28,14 @@ on:
         required: false
         type: string
         default: ""
+      tf_state_bucket:
+        description: >
+          Terraform state bucket, passed to init as -backend-config so the
+          occasion's backend block can omit `bucket`. Leave unset if the
+          backend block hardcodes it.
+        required: false
+        type: string
+        default: ""
     secrets:
       AWS_ACCESS_KEY_ID:
         required: false
@@ -51,6 +59,7 @@ jobs:
     env:
       OCCASION_DIR: ${{ inputs.occasion_dir }}
       PARTYPLANNER_REF: ${{ inputs.partyplanner_ref }}
+      TF_STATE_BUCKET: ${{ inputs.tf_state_bucket }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -82,7 +91,11 @@ jobs:
 
       - name: Terraform apply
         run: |
-          terraform -chdir="${OCCASION_DIR}/terraform" init -input=false
+          backend_config=()
+          if [ -n "$TF_STATE_BUCKET" ]; then
+            backend_config=(-backend-config="bucket=${TF_STATE_BUCKET}")
+          fi
+          terraform -chdir="${OCCASION_DIR}/terraform" init -input=false "${backend_config[@]}"
           terraform -chdir="${OCCASION_DIR}/terraform" apply -input=false -auto-approve
 
       - name: Sync links and site
