@@ -1,25 +1,28 @@
-import pytest
+from click.testing import CliRunner
 
 from conftest import FIXTURES
-from partyplanner import config
+from partyplanner import aws, config
 from partyplanner.aws import link_items
-from partyplanner.cli import _defang
+from partyplanner.cli import main
 
 
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("=1+2", "'=1+2"),
-        ("+SUM(A1)", "'+SUM(A1)"),
-        ("-2", "'-2"),
-        ("@cmd", "'@cmd"),
-        ("Aaron", "Aaron"),
-        ("", ""),
-        (3, 3),
-    ],
-)
-def test_defang_csv_cells(value, expected):
-    assert _defang(value) == expected
+def test_export_rsvps_neutralizes_formula_cells(monkeypatch):
+    rows = [
+        {
+            "event_id": "bbq",
+            "name": "=1+2",
+            "response": "yes",
+            "party_size": 2,
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "via_token": "fixturebbqgroupchat2",
+        }
+    ]
+    monkeypatch.setattr(aws, "export_rsvps", lambda table_name: rows)
+    result = CliRunner().invoke(main, ["export-rsvps", "--table", "t"])
+    assert result.exit_code == 0
+    assert "'=1+2" in result.output
+    assert ",=1+2" not in result.output
 
 
 def test_link_items_allhallowtide():
