@@ -16,13 +16,16 @@ and the domain(s) you plan to use.
 ## 1. Terraform state bucket
 
 Everything else is Terraform, so the state bucket is the one hand-made thing.
-Versioned, private, one per account:
+Versioned, private, one per account. Set the name once and the rest of the
+block pastes as-is:
 
-```console
-$ aws s3api create-bucket --bucket YOUR-TF-STATE-BUCKET --region us-east-1
-$ aws s3api put-bucket-versioning --bucket YOUR-TF-STATE-BUCKET \
+```bash
+export TF_STATE_BUCKET=your-tf-state-bucket
+
+aws s3api create-bucket --bucket "$TF_STATE_BUCKET" --region us-east-1
+aws s3api put-bucket-versioning --bucket "$TF_STATE_BUCKET" \
     --versioning-configuration Status=Enabled
-$ aws s3api put-public-access-block --bucket YOUR-TF-STATE-BUCKET \
+aws s3api put-public-access-block --bucket "$TF_STATE_BUCKET" \
     --public-access-block-configuration \
     BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ```
@@ -45,7 +48,7 @@ your workstation:
 ```hcl
 terraform {
   backend "s3" {
-    bucket = "YOUR-TF-STATE-BUCKET"
+    # bucket comes from `terraform init -backend-config="bucket=$TF_STATE_BUCKET"`
     key    = "bootstrap/terraform.tfstate"
     region = "us-east-1"
   }
@@ -71,8 +74,11 @@ output "name_servers" {
 }
 ```
 
-```console
-$ terraform init && terraform apply
+Terraform backend blocks can't read environment variables, so pass the bucket
+at init time instead of hardcoding it:
+
+```bash
+terraform init -backend-config="bucket=$TF_STATE_BUCKET" && terraform apply
 ```
 
 Note the outputs: `zone_ids` feeds each occasion's `zone_id`, and
@@ -89,8 +95,8 @@ DNS*, not a registrar change.
 Verify before the first deploy — ACM cert validation hangs until delegation
 works:
 
-```console
-$ dig +short NS allhallowtide.party
+```bash
+dig +short NS allhallowtide.party
 ```
 
 ## 4. GitHub Actions OIDC role
@@ -191,7 +197,8 @@ occasions/
 ```hcl
 terraform {
   backend "s3" {
-    bucket = "YOUR-TF-STATE-BUCKET"
+    # bucket comes from the workflows' tf_state_bucket input (or
+    # `terraform init -backend-config="bucket=$TF_STATE_BUCKET"` locally)
     key    = "occasions/bbq-2026/terraform.tfstate"
     region = "us-east-1"
   }
@@ -241,6 +248,7 @@ jobs:
     with:
       occasion_dir: occasions/bbq-2026
       role_to_assume: arn:aws:iam::ACCOUNT_ID:role/partyplanner-deploy
+      tf_state_bucket: your-tf-state-bucket
 ```
 
 Destroy workflow — `workflow_dispatch` only, never wired to config deletion.
@@ -260,6 +268,7 @@ jobs:
     with:
       occasion_dir: occasions/bbq-2026
       role_to_assume: arn:aws:iam::ACCOUNT_ID:role/partyplanner-deploy
+      tf_state_bucket: your-tf-state-bucket
 ```
 
 Pin `@default` (and `?ref=default`) while iterating; switch both to a release
