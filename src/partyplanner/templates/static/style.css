@@ -1,0 +1,75 @@
+:root {
+  --accent: #7a3ff2;
+  --bg: #faf8f5;
+  --ink: #22201d;
+  --muted: #77716a;
+  --card: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+main {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+header { text-align: center; margin-bottom: 2rem; }
+h1 { font-size: 2rem; margin: 0.75rem 0 0.25rem; }
+.hero { width: 100%; border-radius: 12px; max-height: 320px; object-fit: cover; }
+.blurb { color: var(--muted); white-space: pre-line; }
+
+.event {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 1.25rem 1.25rem 1rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border-top: 4px solid var(--accent);
+}
+.event h2 { margin: 0 0 0.25rem; }
+.event-photo { width: 100%; border-radius: 8px; max-height: 240px; object-fit: cover; }
+.when { font-weight: 600; margin: 0.25rem 0; }
+.where { color: var(--muted); margin: 0.25rem 0; }
+.event-blurb { white-space: pre-line; }
+
+.rsvp { border-top: 1px solid #eee7de; margin-top: 1rem; padding-top: 0.75rem; }
+.rsvp h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.counts { color: var(--muted); font-weight: normal; }
+.rsvp-list { list-style: none; padding: 0; margin: 0 0 0.75rem; }
+.rsvp-list li { padding: 0.15rem 0; }
+.rsvp-list .resp { color: var(--muted); font-size: 0.9em; }
+.muted { color: var(--muted); }
+
+.rsvp-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.rsvp-form input[type="text"] { flex: 1 1 10rem; }
+.rsvp-form input, .rsvp-form select, .rsvp-form button {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #d8d2c9;
+  border-radius: 8px;
+  background: #fff;
+}
+.plus { display: flex; align-items: center; gap: 0.25rem; color: var(--muted); }
+.plus input { width: 4rem; }
+.rsvp-form button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+.rsvp-form button:disabled { opacity: 0.5; }
+.form-status { min-height: 1.2em; margin: 0.4rem 0 0; font-size: 0.9em; color: var(--muted); }
+
+.embed { margin-top: 1rem; }
+footer { margin-top: 3rem; text-align: center; color: var(--muted); font-size: 0.85em; }
+footer a { color: inherit; }

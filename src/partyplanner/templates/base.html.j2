@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{ occasion.title }}</title>
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ occasion.title }}">
+<meta property="og:description" content="{{ og_description }}">
+<meta property="og:site_name" content="{{ occasion.title }}">
+{% if og_image %}
+<meta property="og:image" content="{{ og_image }}">
+<meta name="twitter:card" content="summary_large_image">
+{% endif %}
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/custom.css">
+</head>
+<body>
+<main>
+{% block content %}{% endblock %}
+<footer>made with <a href="https://github.com/duplico/partyplanner">partyplanner</a></footer>
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,27 @@
+from conftest import FIXTURES
+from partyplanner import config
+from partyplanner.ics import event_ics
+
+
+def test_bbq_ics():
+    occasion = config.load(FIXTURES / "bbq" / "occasion.yaml")
+    text = event_ics(occasion, occasion.events[0], "bbq")
+    lines = text.split("\r\n")
+    assert "BEGIN:VCALENDAR" in lines
+    assert "UID:bbq@bbq.example.com" in lines
+    # 15:00 America/Chicago (CDT, UTC-5) == 20:00 UTC; default 3h duration
+    assert "DTSTART:20260620T200000Z" in lines
+    assert "DTEND:20260620T230000Z" in lines
+    assert "SUMMARY:BBQ — BBQ Saturday" in lines
+    assert "LOCATION:123 Example Ave" in lines
+    assert all(len(line.encode()) <= 75 for line in lines)
+
+
+def test_ics_escaping_and_folding():
+    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    candy = next(e for e in occasion.events if e.id == "candy")
+    text = event_ics(occasion, candy, "candy")
+    assert "\\n" in text  # multi-line blurb escaped
+    assert all(len(line.encode()) <= 75 for line in text.split("\r\n"))
+    unfolded = text.replace("\r\n ", "")
+    assert "DESCRIPTION:Not a full party" in unfolded
