@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.error import YAMLError
 
 from .tokens import TOKEN_RE, derive_id, mint_token
 
@@ -64,8 +65,13 @@ class Event(BaseModel):
     def _check(self) -> Event:
         if self.rsvp == "open" and self.when is None:
             raise ValueError(f"event {self.title!r} has rsvp: open and needs a `when`")
-        if self.end is not None and self.when is not None and self.end <= self.when:
-            raise ValueError(f"event {self.title!r} ends before it starts")
+        if self.end is not None and self.when is not None:
+            if (self.end.tzinfo is None) != (self.when.tzinfo is None):
+                raise ValueError(
+                    f"event {self.title!r} mixes offset-aware and naive times for when/end"
+                )
+            if self.end <= self.when:
+                raise ValueError(f"event {self.title!r} ends before it starts")
         return self
 
 
@@ -81,7 +87,14 @@ class Link(BaseModel):
     @classmethod
     def _check_token(cls, v: str | None) -> str | None:
         if v is not None and not TOKEN_RE.match(v):
-            raise ValueError(f"token {v!r} is not lowercase base32 of at least 16 chars")
+            raise ValueError(f"token {v!r} is not lowercase base32 of 16-64 chars")
+        return v
+
+    @field_validator("prefill_name")
+    @classmethod
+    def _check_prefill(cls, v: str | None) -> str | None:
+        if v is not None and (not 1 <= len(v) <= 40 or not v.isprintable()):
+            raise ValueError(f"prefill_name {v!r} must be 1-40 printable characters")
         return v
 
 
@@ -182,8 +195,11 @@ class Occasion(BaseModel):
 
 
 def load_raw(path: Path) -> CommentedMap:
-    with path.open() as f:
-        data = yaml.load(f)
+    try:
+        with path.open() as f:
+            data = yaml.load(f)
+    except YAMLError as e:
+        raise ConfigError(f"{path}: invalid YAML: {e}") from e
     if not isinstance(data, CommentedMap):
         raise ConfigError(f"{path}: expected a YAML mapping at the top level")
     return data
@@ -213,16 +229,18 @@ def mint(path: Path) -> list[str]:
     events = data.get("events")
     if isinstance(events, CommentedSeq):
         for node, event in zip(events, occasion.events, strict=True):
-            if isinstance(node, CommentedMap) and "id" not in node:
+            if isinstance(node, CommentedMap) and node.get("id") is None:
                 new_id = derive_id(event.title)
+                node.pop("id", None)  # a bare `id:` parses as null; replace it
                 node.insert(0, "id", new_id)
                 notes.append(f"event {event.title!r}: id = {new_id}")
 
     links = data.get("links")
     if isinstance(links, CommentedSeq):
         for i, node in enumerate(links):
-            if isinstance(node, CommentedMap) and "token" not in node:
+            if isinstance(node, CommentedMap) and node.get("token") is None:
                 token = mint_token()
+                node.pop("token", None)  # a bare `token:` parses as null; replace it
                 node.insert(0, "token", token)
                 label = node.get("prefill_name") or node.get("note") or f"link #{i + 1}"
                 notes.append(f"link {label!r}: token = {token}")

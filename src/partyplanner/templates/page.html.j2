@@ -28,7 +28,7 @@
         <option value="maybe">Maybe</option>
         <option value="no">No</option>
       </select>
-      <label class="plus">+<input type="number" name="party_size" value="0" min="0" max="10"></label>
+      <label class="plus">+<input type="number" name="party_size" value="0" min="0" max="10" aria-label="Additional guests"></label>
       <button type="submit">RSVP</button>
     </form>
     <p class="form-status" data-status="{{ event.id }}" role="status" aria-live="polite"></p>

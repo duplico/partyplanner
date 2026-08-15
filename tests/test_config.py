@@ -130,6 +130,50 @@ def test_mint_writes_back_ids_and_tokens(tmp_path: Path):
     assert config.mint(src) == []  # idempotent
 
 
+def test_mint_fills_explicit_null_id_and_token(tmp_path: Path):
+    src = tmp_path / "occasion.yaml"
+    src.write_text(
+        "title: BBQ Saturday\n"
+        "domain: bbq.example.com\n"
+        "timezone: America/Chicago\n"
+        "events:\n"
+        "  - id:\n"
+        "    title: Backyard BBQ\n"
+        "    when: 2026-06-20 15:00\n"
+        "links:\n"
+        "  - token:\n"
+        "    note: group chat\n"
+    )
+    notes = config.mint(src)
+    assert len(notes) == 2
+    config.require_complete(config.load(src))
+
+
+def test_token_over_64_chars_rejected():
+    with pytest.raises(ConfigError, match="token"):
+        config.parse(_minimal(links=[{"token": "a" * 65, "scope": "all"}]))
+
+
+def test_overlong_prefill_name_rejected():
+    with pytest.raises(ConfigError, match="prefill_name"):
+        config.parse(_minimal(links=[{"scope": "all", "prefill_name": "x" * 41}]))
+
+
+def test_mixed_aware_and_naive_times_rejected():
+    events = [
+        {"id": "a", "title": "A", "when": "2026-06-20 15:00", "end": "2026-06-20 18:00-05:00"}
+    ]
+    with pytest.raises(ConfigError, match="mixes"):
+        config.parse(_minimal(events=events))
+
+
+def test_malformed_yaml_raises_config_error(tmp_path: Path):
+    src = tmp_path / "occasion.yaml"
+    src.write_text("title: [unclosed\n")
+    with pytest.raises(ConfigError, match="invalid YAML"):
+        config.load(src)
+
+
 def test_require_complete_fails_without_tokens(tmp_path: Path):
     shutil.copytree(FIXTURES / "bbq", tmp_path / "bbq")
     path = tmp_path / "bbq" / "occasion.yaml"

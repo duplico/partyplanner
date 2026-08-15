@@ -72,6 +72,18 @@ def test_asset_path_escaping_config_dir_rejected(tmp_path: Path):
         render(occasion, config_dir, tmp_path / "out")
 
 
+def test_override_symlink_escaping_config_dir_rejected(tmp_path: Path):
+    (tmp_path / "secret.txt").write_text("secret")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    overrides = config_dir / "overrides"
+    overrides.mkdir()
+    (overrides / "leak.txt").symlink_to(tmp_path / "secret.txt")
+    occasion = _asset_occasion(config_dir)
+    with pytest.raises(ConfigError, match="escapes"):
+        render(occasion, config_dir, tmp_path / "out")
+
+
 def test_asset_symlink_escaping_config_dir_rejected(tmp_path: Path):
     (tmp_path / "secret.svg").write_text("<svg>secret</svg>")
     config_dir = tmp_path / "config"
@@ -108,7 +120,8 @@ def test_render_bbq(tmp_path: Path):
     assert (site / "assets" / "app.js").exists()
     assert (site / "assets" / "custom.css").exists()
     assert (site / "assets" / "img" / "assets" / "bbq.svg").exists()
-    assert (site / "ics" / "bbq.ics").exists()
+    assert (site / "i" / "fixturebbqgroupchat2" / "bbq.ics").exists()
+    assert not (site / "ics").exists()
 
     page = (site / "i" / "fixturebbqgroupchat2" / "index.html").read_text()
     assert "BBQ Saturday" in page
@@ -164,6 +177,14 @@ def test_render_allhallowtide_scopes(tmp_path: Path):
     # revoked token gets no page
     assert not (site / "i" / "fixturerevokedtoken2").exists()
 
+    # calendar files live behind each capability URL, scoped to that link:
+    # a stream-only recipient gets no party.ics, and there is no guessable
+    # site-wide /ics/ directory
+    assert not (site / "ics").exists()
+    assert (site / "i" / "fixtureaaronfull2222" / "party.ics").exists()
+    assert (site / "i" / "fixturechanceparty22" / "party.ics").exists()
+    assert not (site / "i" / "fixturestreamonly222" / "party.ics").exists()
     # no ICS for the undated stream card
-    assert not (site / "ics" / "stream.ics").exists()
-    assert (site / "ics" / "party.ics").exists()
+    assert not (site / "i" / "fixtureaaronfull2222" / "stream.ics").exists()
+    # pages reference the calendar relative to the token directory
+    assert 'href="party.ics"' in full

@@ -4,7 +4,7 @@ import secrets
 import unicodedata
 
 TOKEN_BYTES = 12  # 96 bits
-TOKEN_RE = re.compile(r"^[a-z2-7]{16,}$")
+TOKEN_RE = re.compile(r"^[a-z2-7]{16,64}$")  # must match the RSVP Lambda's bounds
 
 
 def mint_token() -> str:

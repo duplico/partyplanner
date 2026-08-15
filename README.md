@@ -101,10 +101,13 @@ in the bootstrap module.
 
   ```hcl
   module "occasion" {
-    source    = "github.com/duplico/partyplanner//modules/occasion?ref=v0.1.0"
-    providers = { aws.us_east_1 = aws.us_east_1 }
-    domain    = "bbq-2026.events.example.com"
-    zone_id   = "Z0123456789EXAMPLE"
+    source = "github.com/duplico/partyplanner//modules/occasion?ref=v0.1.0"
+    providers = {
+      aws           = aws
+      aws.us_east_1 = aws.us_east_1
+    }
+    domain  = "bbq-2026.events.example.com"
+    zone_id = "Z0123456789EXAMPLE"
   }
   ```
 

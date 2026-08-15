@@ -120,7 +120,9 @@ resource "aws_iam_role" "deploy" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:YOUR-ORG/YOUR-EVENTS-REPO:*"
+          # Only workflows running on the default branch may assume the role —
+          # never pull-request jobs or other refs.
+          "token.actions.githubusercontent.com:sub" = "repo:YOUR-ORG/YOUR-EVENTS-REPO:ref:refs/heads/default"
         }
       }
     }]
@@ -129,8 +131,8 @@ resource "aws_iam_role" "deploy" {
 
 # The occasion module spans S3/CloudFront/ACM/Route53/API GW/Lambda/DynamoDB
 # and creates the Lambda's execution role, so the deploy role is broad. It is
-# still confined to one repo via the OIDC subject condition above; scope it
-# down further once your resource-naming conventions settle.
+# still confined to one repo's default branch via the OIDC subject condition
+# above; scope it down further once your resource-naming conventions settle.
 resource "aws_iam_role_policy" "deploy" {
   name = "partyplanner-deploy"
   role = aws_iam_role.deploy.id
@@ -205,10 +207,13 @@ provider "aws" {
 }
 
 module "occasion" {
-  source    = "github.com/duplico/partyplanner//modules/occasion?ref=default"
-  providers = { aws.us_east_1 = aws.us_east_1 }
-  domain    = "bbq-2026.events.example.com"
-  zone_id   = "Z0123456789EXAMPLE" # from bootstrap zone_ids
+  source = "github.com/duplico/partyplanner//modules/occasion?ref=default"
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+  domain  = "bbq-2026.events.example.com"
+  zone_id = "Z0123456789EXAMPLE" # from bootstrap zone_ids
 }
 
 output "bucket" { value = module.occasion.bucket }

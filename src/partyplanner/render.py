@@ -72,14 +72,12 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
     occasion_photo = asset(occasion.photo)
 
     events = {}
+    ics_texts = {}
     for event in occasion.events:
         event_id = event.id
         assert event_id is not None
-        ics_path = None
         if event.when is not None:
-            (site / "ics").mkdir(exist_ok=True)
-            (site / "ics" / f"{event_id}.ics").write_text(event_ics(occasion, event, event_id))
-            ics_path = f"/ics/{event_id}.ics"
+            ics_texts[event_id] = event_ics(occasion, event, event_id)
         events[event_id] = {
             "id": event_id,
             "title": event.title,
@@ -88,7 +86,9 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
             "blurb": event.blurb,
             "photo": asset(event.photo),
             "rsvp_open": event.rsvp == "open",
-            "ics": ics_path,
+            # Relative to the /i/<token>/ page, so calendar files stay behind
+            # the capability URL instead of a guessable site-wide path.
+            "ics": f"{event_id}.ics" if event.when is not None else None,
         }
 
     base_ctx = {
@@ -115,6 +115,9 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
         token_dir = site / "i" / str(link.token)
         token_dir.mkdir(parents=True)
         (token_dir / "index.html").write_text(pages[scope])
+        for event_id in scope:
+            if event_id in ics_texts:
+                (token_dir / f"{event_id}.ics").write_text(ics_texts[event_id])
         rows.append(
             {
                 "prefill_name": link.prefill_name or "",
@@ -131,4 +134,11 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
 
     overrides = config_dir / "overrides"
     if overrides.is_dir():
-        shutil.copytree(overrides, site, dirs_exist_ok=True)
+        for src in sorted(overrides.rglob("*")):
+            rel = src.relative_to(overrides)
+            resolved = _contained(overrides, str(rel))
+            if resolved.is_dir():
+                continue
+            dest = site / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(resolved, dest)
