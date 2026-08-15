@@ -167,6 +167,43 @@ def test_mixed_aware_and_naive_times_rejected():
         config.parse(_minimal(events=events))
 
 
+def test_trailing_newline_token_rejected():
+    with pytest.raises(ConfigError, match="token"):
+        config.parse(_minimal(links=[{"token": "abcdefghijklmnop\n", "scope": "all"}]))
+
+
+def test_trailing_newline_event_id_rejected():
+    events = [{"id": "a\n", "title": "A", "when": "2026-06-20 15:00"}]
+    with pytest.raises(ConfigError, match="event id"):
+        config.parse(_minimal(events=events))
+
+
+def test_trailing_newline_domain_rejected():
+    with pytest.raises(ConfigError, match="domain"):
+        config.parse(_minimal(domain="bbq.example.com\n"))
+
+
+def test_overlong_domain_rejected():
+    with pytest.raises(ConfigError, match="domain"):
+        config.parse(_minimal(domain=("a" * 60 + ".") * 5 + "com"))
+
+
+def test_prefill_name_normalized_like_api():
+    occasion = config.parse(_minimal(links=[{"scope": "all", "prefill_name": "  Aaron   B  "}]))
+    assert occasion.links[0].prefill_name == "Aaron B"
+
+
+def test_whitespace_only_prefill_name_rejected():
+    with pytest.raises(ConfigError, match="prefill_name"):
+        config.parse(_minimal(links=[{"scope": "all", "prefill_name": "   "}]))
+
+
+def test_end_without_when_rejected():
+    events = [{"id": "a", "title": "A", "rsvp": "none", "end": "2026-06-20 18:00"}]
+    with pytest.raises(ConfigError, match="`end` but no `when`"):
+        config.parse(_minimal(events=events))
+
+
 def test_invalid_revoked_token_rejected():
     with pytest.raises(ConfigError, match="revoked token"):
         config.parse(_minimal(revoked=["NOT-A-TOKEN"]))

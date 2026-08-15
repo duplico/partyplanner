@@ -143,7 +143,7 @@ whatever comes next.
 $ uv sync
 $ uv run pytest
 $ uv run ruff check .
-$ terraform -chdir=modules/occasion init -backend=false && terraform -chdir=modules/occasion validate
+$ terraform -chdir=examples/occasion init -backend=false && terraform -chdir=examples/occasion validate
 ```
 
 ## Threat model, briefly

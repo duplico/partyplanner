@@ -18,7 +18,7 @@ import re
 
 import boto3
 
-TOKEN_RE = re.compile(r"^[a-z2-7]{16,64}$")
+TOKEN_RE = re.compile(r"^[a-z2-7]{16,64}\Z")
 RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
 MAX_PARTY = 10
@@ -56,7 +56,7 @@ def parse_rsvp(body: dict) -> dict:
     if not isinstance(token, str) or not TOKEN_RE.match(token):
         raise BadRequest("bad token")
     event_id = body.get("event_id")
-    if not isinstance(event_id, str) or not re.match(r"^[a-z0-9-]{1,64}$", event_id):
+    if not isinstance(event_id, str) or not re.match(r"^[a-z0-9-]{1,64}\Z", event_id):
         raise BadRequest("bad event_id")
     name = body.get("name")
     if not isinstance(name, str):

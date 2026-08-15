@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "site" {
-  bucket        = "${local.name}-site"
+  bucket        = local.bucket_name
   force_destroy = true
   tags          = local.tags
 }

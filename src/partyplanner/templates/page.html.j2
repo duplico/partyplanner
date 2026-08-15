@@ -22,7 +22,7 @@
     <h3>Who's coming <span class="counts" data-counts="{{ event.id }}"></span></h3>
     <ul class="rsvp-list" data-rsvps="{{ event.id }}"><li class="muted">Loading…</li></ul>
     <form class="rsvp-form" data-form="{{ event.id }}">
-      <input type="text" name="name" placeholder="Your first name" maxlength="40" required>
+      <input type="text" name="name" placeholder="Your first name" aria-label="Your first name" maxlength="40" required>
       <select name="response" aria-label="Response">
         <option value="yes">Yes</option>
         <option value="maybe">Maybe</option>

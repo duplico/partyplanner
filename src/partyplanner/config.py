@@ -30,7 +30,7 @@ class Landing(BaseModel):
     embed: str | None = None  # path to an HTML fragment injected into the landing page
 
 
-EVENT_ID_RE = re.compile(r"^[a-z0-9-]{1,64}$")
+EVENT_ID_RE = re.compile(r"^[a-z0-9-]{1,64}\Z")
 
 
 class Event(BaseModel):
@@ -65,6 +65,8 @@ class Event(BaseModel):
     def _check(self) -> Event:
         if self.rsvp == "open" and self.when is None:
             raise ValueError(f"event {self.title!r} has rsvp: open and needs a `when`")
+        if self.end is not None and self.when is None:
+            raise ValueError(f"event {self.title!r} has an `end` but no `when`")
         if self.end is not None and self.when is not None:
             if (self.end.tzinfo is None) != (self.when.tzinfo is None):
                 raise ValueError(
@@ -93,7 +95,10 @@ class Link(BaseModel):
     @field_validator("prefill_name")
     @classmethod
     def _check_prefill(cls, v: str | None) -> str | None:
-        if v is not None and (not 1 <= len(v) <= 40 or not v.isprintable()):
+        if v is None:
+            return v
+        v = " ".join(v.split())  # same normalization the RSVP API applies to names
+        if not 1 <= len(v) <= 40 or not v.isprintable():
             raise ValueError(f"prefill_name {v!r} must be 1-40 printable characters")
         return v
 
@@ -115,7 +120,9 @@ class Occasion(BaseModel):
     @field_validator("domain")
     @classmethod
     def _check_domain(cls, v: str) -> str:
-        if not re.match(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", v):
+        if len(v) > 253 or not re.match(
+            r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\Z", v
+        ):
             raise ValueError(f"domain {v!r} is not a valid lowercase hostname")
         return v
 

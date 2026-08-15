@@ -56,9 +56,10 @@ resource "aws_cloudfront_origin_access_control" "site" {
 }
 
 # Rewrite directory requests (/i/<token>/) to their index.html object.
-# Extensionless paths redirect to the trailing-slash form (rather than being
-# rewritten in place) so relative links on the page (e.g. per-token .ics
-# files) resolve against the right base URL.
+# Slashless invitation paths redirect to the trailing-slash form (rather than
+# being rewritten in place) so relative links on the page (e.g. per-token .ics
+# files) resolve against the right base URL. Only the /i/<token> shape is
+# redirected — other extensionless paths (e.g. override assets) pass through.
 resource "aws_cloudfront_function" "index_rewrite" {
   name    = "${local.name}-index-rewrite"
   runtime = "cloudfront-js-2.0"
@@ -69,7 +70,7 @@ resource "aws_cloudfront_function" "index_rewrite" {
       var uri = request.uri;
       if (uri.endsWith('/')) {
         request.uri = uri + 'index.html';
-      } else if (!uri.includes('.')) {
+      } else if (/^\/i\/[a-z2-7]{16,64}$/.test(uri)) {
         return {
           statusCode: 301,
           statusDescription: 'Moved Permanently',
