@@ -5,14 +5,14 @@ import datetime as dt
 import shutil
 from pathlib import Path
 
-from jinja2 import Environment, PackageLoader, select_autoescape
+from jinja2 import Environment, PackageLoader
 
 from .config import ConfigError, Occasion, require_complete
 from .ics import event_ics
 
 env = Environment(
     loader=PackageLoader("partyplanner", "templates"),
-    autoescape=select_autoescape(["html"]),
+    autoescape=True,
     trim_blocks=True,
     lstrip_blocks=True,
 )
@@ -37,10 +37,15 @@ def _fmt_when(start: dt.datetime, end: dt.datetime | None, occasion: Occasion) -
     return f"{text} {start.strftime('%Z')}"
 
 
+def _contained(base: Path, rel: str) -> Path:
+    path = (base / rel).resolve()
+    if not path.is_relative_to(base.resolve()):
+        raise ConfigError(f"path {rel!r} escapes {base}")
+    return path
+
+
 def _copy_asset(src: Path, rel: str, img_dir: Path) -> str:
-    dest = (img_dir / rel).resolve()
-    if not dest.is_relative_to(img_dir.resolve()):
-        raise ConfigError(f"asset path {rel!r} escapes the config directory")
+    dest = _contained(img_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dest)
     return f"/assets/img/{dest.relative_to(img_dir.resolve()).as_posix()}"
@@ -97,7 +102,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
     if occasion.landing:
         landing_ctx["landing_photo"] = asset(occasion.landing.photo)
         if occasion.landing.embed:
-            landing_ctx["embed_html"] = (config_dir / occasion.landing.embed).read_text()
+            landing_ctx["embed_html"] = _contained(config_dir, occasion.landing.embed).read_text()
     (site / "index.html").write_text(env.get_template("landing.html.j2").render(landing_ctx))
 
     page_tpl = env.get_template("page.html.j2")

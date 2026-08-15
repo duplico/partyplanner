@@ -58,6 +58,23 @@ def test_asset_path_escaping_config_dir_rejected(tmp_path: Path):
         render(occasion, config_dir, tmp_path / "out")
 
 
+def test_embed_path_escaping_config_dir_rejected(tmp_path: Path):
+    (tmp_path / "private.html").write_text("secret")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    occasion = _asset_occasion(config_dir, landing={"blurb": "hi", "embed": "../private.html"})
+    with pytest.raises(ConfigError, match="escapes"):
+        render(occasion, config_dir, tmp_path / "out")
+
+
+def test_config_html_is_autoescaped(tmp_path: Path):
+    occasion = _asset_occasion(tmp_path, blurb='<script>alert("x")</script>')
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert '<script>alert("x")</script>' not in page
+    assert "&lt;script&gt;" in page
+
+
 def test_render_bbq(tmp_path: Path):
     occasion = config.load(FIXTURES / "bbq" / "occasion.yaml")
     render(occasion, FIXTURES / "bbq", tmp_path)

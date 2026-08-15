@@ -17,6 +17,15 @@ def test_bbq_ics():
     assert all(len(line.encode()) <= 75 for line in lines)
 
 
+def test_ics_carriage_returns_normalized():
+    occasion = config.load(FIXTURES / "bbq" / "occasion.yaml")
+    event = occasion.events[0].model_copy(update={"blurb": "line one\r\nline two\rline three"})
+    text = event_ics(occasion, event, "bbq")
+    unfolded = text.replace("\r\n ", "").replace("\r\n", "\n")
+    assert "\r" not in unfolded
+    assert "DESCRIPTION:line one\\nline two\\nline three" in unfolded
+
+
 def test_ics_escaping_and_folding():
     occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
     candy = next(e for e in occasion.events if e.id == "candy")
