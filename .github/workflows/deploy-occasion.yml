@@ -41,6 +41,11 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # One deploy or destroy at a time per occasion; queued runs wait rather
+    # than cancel so the newest config still lands last.
+    concurrency:
+      group: occasion-${{ github.repository }}-${{ inputs.occasion_dir }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

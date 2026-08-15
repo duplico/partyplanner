@@ -81,6 +81,13 @@ def test_handler_body_too_large():
     assert result["statusCode"] == 400
 
 
+def test_handler_body_too_large_multibyte():
+    event = _event("POST", "/api/rsvp")
+    event["body"] = "é" * 1500  # 1500 chars but 3000 UTF-8 bytes
+    result = handler.lambda_handler(event, None)
+    assert result["statusCode"] == 400
+
+
 def test_handler_unknown_route():
     result = handler.lambda_handler(_event("GET", "/api/nope"), None)
     assert result["statusCode"] == 404
@@ -102,6 +109,30 @@ class FakeTable:
 
     def update_item(self, **kwargs):
         self.updates.append(kwargs)
+
+
+class PagingTable(FakeTable):
+    def query(self, KeyConditionExpression, ExpressionAttributeValues, ExclusiveStartKey=None):
+        pk = ExpressionAttributeValues[":pk"]
+        items = self.rsvps.get(pk, [])
+        if ExclusiveStartKey is None:
+            return {"Items": items[:1], "LastEvaluatedKey": {"pk": pk, "sk": items[0]["name"]}}
+        return {"Items": items[1:]}
+
+
+def test_get_state_follows_pagination(monkeypatch):
+    table = PagingTable(
+        links={"LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]}},
+        rsvps={
+            "EVENT#bbq": [
+                {"name": "aaron", "response": "yes", "party_size": 1},
+                {"name": "chance", "response": "maybe", "party_size": 0},
+            ]
+        },
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    state = handler.get_state("fixturebbqgroupchat2")
+    assert [r["name"] for r in state["events"]["bbq"]] == ["aaron", "chance"]
 
 
 def test_get_state_prefill_suppressed_after_rsvp(monkeypatch):

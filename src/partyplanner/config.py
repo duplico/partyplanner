@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -28,6 +29,9 @@ class Landing(BaseModel):
     embed: str | None = None  # path to an HTML fragment injected into the landing page
 
 
+EVENT_ID_RE = re.compile(r"^[a-z0-9-]{1,64}$")
+
+
 class Event(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -39,6 +43,13 @@ class Event(BaseModel):
     blurb: str | None = None
     photo: str | None = None
     rsvp: Literal["open", "none"] = "open"
+
+    @field_validator("id")
+    @classmethod
+    def _check_id(cls, v: str | None) -> str | None:
+        if v is not None and not EVENT_ID_RE.match(v):
+            raise ValueError(f"event id {v!r} must match [a-z0-9-] and be at most 64 chars")
+        return v
 
     @field_validator("when", "end", mode="before")
     @classmethod
@@ -91,7 +102,10 @@ class Occasion(BaseModel):
     @field_validator("timezone")
     @classmethod
     def _check_timezone(cls, v: str) -> str:
-        ZoneInfo(v)
+        try:
+            ZoneInfo(v)
+        except Exception as e:
+            raise ValueError(f"unknown timezone {v!r}") from e
         return v
 
     @model_validator(mode="after")

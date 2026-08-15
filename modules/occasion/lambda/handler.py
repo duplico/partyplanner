@@ -91,17 +91,24 @@ def get_state(token: str) -> dict:
     events: dict[str, list[dict]] = {}
     prefill = link.get("prefill_name")
     for event_id in link.get("rsvp_events", []):
-        page = table().query(
-            KeyConditionExpression="pk = :pk AND begins_with(sk, :sk)",
-            ExpressionAttributeValues={":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
-        )
+        items = []
+        kwargs = {
+            "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
+            "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
+        }
+        while True:
+            page = table().query(**kwargs)
+            items.extend(page["Items"])
+            if "LastEvaluatedKey" not in page:
+                break
+            kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
         rows = [
             {
                 "name": item["name"],
                 "response": item["response"],
                 "party_size": int(item["party_size"]),
             }
-            for item in page["Items"]
+            for item in items
         ]
         rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
         events[event_id] = rows
@@ -148,7 +155,7 @@ def lambda_handler(event: dict, _context: object) -> dict:
             return _response(200, get_state(token))
         if method == "POST" and path.endswith("/rsvp"):
             raw = event.get("body") or ""
-            if len(raw) > MAX_BODY:
+            if len(raw.encode("utf-8")) > MAX_BODY:
                 raise BadRequest("body too large")
             try:
                 body = json.loads(raw)

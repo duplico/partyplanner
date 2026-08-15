@@ -35,6 +35,10 @@ permissions:
 jobs:
   destroy:
     runs-on: ubuntu-latest
+    # Same group as deploy-occasion so destroy and deploy are mutually exclusive.
+    concurrency:
+      group: occasion-${{ github.repository }}-${{ inputs.occasion_dir }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

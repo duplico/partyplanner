@@ -14,7 +14,7 @@ def mint_token() -> str:
 
 def derive_id(title: str) -> str:
     normalized = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
-    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")[:64].rstrip("-")
     if not slug:
         raise ValueError(f"cannot derive an id from title {title!r}; set an explicit id")
     return slug

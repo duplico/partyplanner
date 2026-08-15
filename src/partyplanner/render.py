@@ -7,7 +7,7 @@ from pathlib import Path
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from .config import Occasion, require_complete
+from .config import ConfigError, Occasion, require_complete
 from .ics import event_ics
 
 env = Environment(
@@ -37,11 +37,13 @@ def _fmt_when(start: dt.datetime, end: dt.datetime | None, occasion: Occasion) -
     return f"{text} {start.strftime('%Z')}"
 
 
-def _copy_asset(src: Path, img_dir: Path) -> str:
-    img_dir.mkdir(parents=True, exist_ok=True)
-    dest = img_dir / src.name
+def _copy_asset(src: Path, rel: str, img_dir: Path) -> str:
+    dest = (img_dir / rel).resolve()
+    if not dest.is_relative_to(img_dir.resolve()):
+        raise ConfigError(f"asset path {rel!r} escapes the config directory")
+    dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dest)
-    return f"/assets/img/{src.name}"
+    return f"/assets/img/{dest.relative_to(img_dir.resolve()).as_posix()}"
 
 
 def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
@@ -60,7 +62,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
     (site / "robots.txt").write_text("User-agent: *\nDisallow: /\n")
 
     def asset(rel: str | None) -> str | None:
-        return _copy_asset(config_dir / rel, img_dir) if rel else None
+        return _copy_asset(config_dir / rel, rel, img_dir) if rel else None
 
     occasion_photo = asset(occasion.photo)
 

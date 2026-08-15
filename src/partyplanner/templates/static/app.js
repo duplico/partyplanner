@@ -81,7 +81,11 @@
       })
         .then(function (res) {
           if (!res.ok) throw new Error("rsvp failed: " + res.status);
-          if (status) status.textContent = "Got it — see you there!";
+          if (status) {
+            status.textContent = form.elements.response.value === "yes"
+              ? "Got it — see you there!"
+              : "Got it — RSVP saved.";
+          }
           return refresh();
         })
         .catch(function () {

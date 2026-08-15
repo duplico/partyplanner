@@ -37,6 +37,18 @@ def _minimal(**overrides) -> dict:
     return data
 
 
+def test_unknown_timezone_rejected():
+    with pytest.raises(ConfigError, match="unknown timezone"):
+        config.parse(_minimal(timezone="Not/AZone"))
+
+
+@pytest.mark.parametrize("bad_id", ["../../outside", "UPPER", "has space", "x" * 65])
+def test_bad_event_id_rejected(bad_id):
+    events = [{"id": bad_id, "title": "A", "when": "2026-06-20 15:00"}]
+    with pytest.raises(ConfigError, match="event id"):
+        config.parse(_minimal(events=events))
+
+
 def test_duplicate_event_ids_rejected():
     events = [
         {"id": "a", "title": "A", "when": "2026-06-20 15:00"},
