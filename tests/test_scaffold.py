@@ -125,3 +125,31 @@ def test_scaffold_bootstrap_rejects_bad_repo(tmp_path):
             budget_limit=10,
             github_repo="not-a-repo",
         )
+
+
+@pytest.mark.parametrize(
+    "email",
+    ["no-at-sign", 'a"@example.com', "${aws:x}@example.com", "you@example", "a b@example.com"],
+)
+def test_scaffold_bootstrap_rejects_bad_email(tmp_path, email):
+    with pytest.raises(ConfigError, match="budget email"):
+        scaffold_bootstrap(
+            tmp_path,
+            zones=["events.example.com"],
+            budget_email=email,
+            budget_limit=10,
+            github_repo="1512-ninja/events",
+        )
+
+
+def test_scaffold_numeric_occasion_name_yields_valid_config(tmp_path):
+    scaffold_occasion(
+        tmp_path,
+        "2026",
+        domain="2026.allhallowtide.party",
+        zone_id="Z0123456789EXAMPLE",
+        role_arn="arn:aws:iam::123456789012:role/partyplanner-deploy",
+        state_bucket="my-tf-state",
+    )
+    occasion = config.load(tmp_path / "occasions" / "2026" / "occasion.yaml")
+    assert occasion.title == "2026"

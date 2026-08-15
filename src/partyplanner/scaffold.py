@@ -24,6 +24,7 @@ BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\Z")
 HOSTNAME_RE = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\Z")
 REF_RE = re.compile(r"^[A-Za-z0-9._/-]{1,128}\Z")
 REGION_RE = re.compile(r"^[a-z]{2}(-[a-z]+)+-\d\Z")
+EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\Z")
 
 _env = Environment(
     loader=PackageLoader("partyplanner", "scaffold"),
@@ -69,8 +70,7 @@ def scaffold_bootstrap(
     _check(REF_RE, branch, "branch")
     _check(REGION_RE, region, "region")
     _check(REF_RE, ref, "ref")
-    if "@" not in budget_email:
-        raise ConfigError(f"budget email {budget_email!r} is not valid")
+    _check(EMAIL_RE, budget_email, "budget email")
     content = _env.get_template("bootstrap_main.tf.j2").render(
         zones=zones,
         budget_email=budget_email,
