@@ -95,7 +95,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
         "occasion": occasion,
         "occasion_photo": occasion_photo,
         "og_image": f"https://{occasion.domain}{occasion_photo}" if occasion_photo else None,
-        "og_description": (occasion.blurb or "You're invited.").strip().splitlines()[0],
+        "og_description": ((occasion.blurb or "").strip() or "You're invited.").splitlines()[0],
     }
 
     landing_ctx = dict(base_ctx, landing=occasion.landing, landing_photo=None, embed_html=None)

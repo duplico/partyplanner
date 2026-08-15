@@ -99,6 +99,13 @@ class Occasion(BaseModel):
     links: list[Link] = Field(default_factory=list)
     revoked: list[str] = Field(default_factory=list)
 
+    @field_validator("domain")
+    @classmethod
+    def _check_domain(cls, v: str) -> str:
+        if not re.match(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", v):
+            raise ValueError(f"domain {v!r} is not a valid lowercase hostname")
+        return v
+
     @field_validator("timezone")
     @classmethod
     def _check_timezone(cls, v: str) -> str:

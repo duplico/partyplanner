@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="same-origin">
 <title>{{ occasion.title }}</title>
 <meta property="og:type" content="website">
 <meta property="og:title" content="{{ occasion.title }}">
@@ -19,7 +20,7 @@
 <body>
 <main>
 {% block content %}{% endblock %}
-<footer>made with <a href="https://github.com/duplico/partyplanner">partyplanner</a></footer>
+<footer>made with <a href="https://github.com/duplico/partyplanner" rel="noopener noreferrer">partyplanner</a></footer>
 </main>
 {% block scripts %}{% endblock %}
 </body>

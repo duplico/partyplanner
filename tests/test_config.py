@@ -42,6 +42,20 @@ def test_unknown_timezone_rejected():
         config.parse(_minimal(timezone="Not/AZone"))
 
 
+@pytest.mark.parametrize(
+    "bad_domain",
+    ["EXAMPLE.COM", "no-dots", "exa mple.com", 'x.com"><script>', "-leading.example.com"],
+)
+def test_bad_domain_rejected(bad_domain):
+    with pytest.raises(ConfigError, match="domain"):
+        config.parse(_minimal(domain=bad_domain))
+
+
+@pytest.mark.parametrize("good_domain", ["2026.allhallowtide.party", "events.1512.link"])
+def test_good_domain_accepted(good_domain):
+    assert config.parse(_minimal(domain=good_domain)).domain == good_domain
+
+
 @pytest.mark.parametrize("bad_id", ["../../outside", "UPPER", "has space", "x" * 65])
 def test_bad_event_id_rejected(bad_id):
     events = [{"id": bad_id, "title": "A", "when": "2026-06-20 15:00"}]

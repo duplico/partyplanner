@@ -37,7 +37,11 @@ def table():
 def _response(status: int, body: dict) -> dict:
     return {
         "statusCode": status,
-        "headers": {"Content-Type": "application/json", "Cache-Control": "no-store"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
         "body": json.dumps(body),
     }
 
@@ -60,6 +64,8 @@ def parse_rsvp(body: dict) -> dict:
     name = " ".join(name.split())
     if not 1 <= len(name) <= MAX_NAME:
         raise BadRequest(f"name must be 1-{MAX_NAME} characters")
+    if not name.isprintable():
+        raise BadRequest("name contains unprintable characters")
     response = body.get("response")
     if response not in RESPONSES:
         raise BadRequest("response must be yes, maybe, or no")

@@ -31,6 +31,8 @@ def test_parse_rsvp_ok():
         {"name": ""},
         {"name": "x" * 41},
         {"name": 42},
+        {"name": "evil\u202egnp.exe"},  # RTL-override spoofing
+        {"name": "zero\u200bwidth"},
         {"response": "definitely"},
         {"party_size": -1},
         {"party_size": 11},
@@ -57,6 +59,8 @@ def test_handler_routes_state(monkeypatch):
     result = handler.lambda_handler(_event("GET", "/api/state", query={"t": "sometoken"}), None)
     assert result["statusCode"] == 200
     assert json.loads(result["body"]) == {"events": {}, "prefill": None}
+    assert result["headers"]["X-Content-Type-Options"] == "nosniff"
+    assert result["headers"]["Cache-Control"] == "no-store"
 
 
 def test_handler_routes_rsvp(monkeypatch):

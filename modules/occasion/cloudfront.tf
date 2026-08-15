@@ -10,6 +10,44 @@ data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
   name = "Managed-AllViewerExceptHostHeader"
 }
 
+# Baseline security headers. The CSP allows https: embeds/scripts so that
+# configured landing embeds (e.g. a stream player) keep working, while still
+# blocking plaintext, data:-URI scripts, framing, and referrer token leaks
+# (invitation URLs carry the capability token in the path).
+resource "aws_cloudfront_response_headers_policy" "site" {
+  name = "${local.name}-headers"
+
+  security_headers_config {
+    content_type_options {
+      override = true
+    }
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+    referrer_policy {
+      referrer_policy = "same-origin"
+      override        = true
+    }
+    content_security_policy {
+      content_security_policy = join("; ", [
+        "default-src 'self'",
+        "script-src 'self' https:",
+        "style-src 'self' 'unsafe-inline' https:",
+        "img-src 'self' https: data:",
+        "frame-src https:",
+        "media-src https: blob:",
+        "connect-src 'self' https:",
+        "object-src 'none'",
+        "base-uri 'none'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+      ])
+      override = true
+    }
+  }
+}
+
 resource "aws_cloudfront_origin_access_control" "site" {
   name                              = local.name
   origin_access_control_origin_type = "s3"
@@ -64,12 +102,13 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   default_cache_behavior {
-    target_origin_id       = "site-s3"
-    viewer_protocol_policy = "redirect-to-https"
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
-    compress               = true
+    target_origin_id           = "site-s3"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    cache_policy_id            = data.aws_cloudfront_cache_policy.optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
+    compress                   = true
 
     function_association {
       event_type   = "viewer-request"
@@ -78,13 +117,14 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   ordered_cache_behavior {
-    path_pattern             = "/api/*"
-    target_origin_id         = "rsvp-api"
-    viewer_protocol_policy   = "https-only"
-    allowed_methods          = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods           = ["GET", "HEAD"]
-    cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
-    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+    path_pattern               = "/api/*"
+    target_origin_id           = "rsvp-api"
+    viewer_protocol_policy     = "https-only"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods             = ["GET", "HEAD"]
+    cache_policy_id            = data.aws_cloudfront_cache_policy.disabled.id
+    origin_request_policy_id   = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
   }
 
   restrictions {

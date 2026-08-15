@@ -49,6 +49,20 @@ def test_assets_with_same_basename_do_not_collide(tmp_path: Path):
     assert "/assets/img/reception/hero.svg" in page
 
 
+def test_whitespace_blurb_uses_default_og_description(tmp_path: Path):
+    occasion = _asset_occasion(tmp_path, blurb="  \n  ")
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert 'og:description" content="You&#39;re invited."' in page
+
+
+def test_pages_suppress_cross_origin_referrer(tmp_path: Path):
+    occasion = _asset_occasion(tmp_path)
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert '<meta name="referrer" content="same-origin">' in page
+
+
 def test_asset_path_escaping_config_dir_rejected(tmp_path: Path):
     (tmp_path / "evil.svg").write_text("<svg></svg>")
     config_dir = tmp_path / "config"
