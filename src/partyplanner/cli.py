@@ -96,37 +96,50 @@ def scaffold() -> None:
 @click.option("--budget-email", required=True, help="Email for budget alerts.")
 @click.option("--budget-limit", default=10, show_default=True, help="Monthly budget in USD.")
 @click.option("--github-repo", required=True, help="This events repo, as ORG/REPO (for OIDC).")
+@click.option(
+    "--state-bucket",
+    envvar="TF_STATE_BUCKET",
+    default=None,
+    help="Terraform state bucket, recorded in partyplanner.yaml (default: $TF_STATE_BUCKET).",
+)
 @click.option("--branch", default="default", show_default=True, help="Deployable branch.")
 @click.option("--region", default="us-east-1", show_default=True)
 @click.option("--ref", default="default", show_default=True, help="partyplanner ref to pin.")
+@click.option("--force", is_flag=True, help="Regenerate over existing files.")
 def scaffold_bootstrap_cmd(
     root: Path,
     zones: tuple[str, ...],
     budget_email: str,
     budget_limit: int,
     github_repo: str,
+    state_bucket: str | None,
     branch: str,
     region: str,
     ref: str,
+    force: bool,
 ) -> None:
     """Write bootstrap/main.tf (hosted zones, budget alarm, OIDC deploy role)."""
     from .scaffold import scaffold_bootstrap
 
     try:
-        paths = scaffold_bootstrap(
+        written, kept = scaffold_bootstrap(
             root,
             zones=list(zones),
             budget_email=budget_email,
             budget_limit=budget_limit,
             github_repo=github_repo,
+            state_bucket=state_bucket,
             branch=branch,
             region=region,
             ref=ref,
+            force=force,
         )
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
-    for path in paths:
+    for path in written:
         click.echo(f"wrote {path}")
+    for path in kept:
+        click.echo(f"kept {path}")
     click.echo(
         "next: cd bootstrap && "
         'terraform init -backend-config="bucket=$TF_STATE_BUCKET" && terraform apply'
@@ -137,30 +150,38 @@ def scaffold_bootstrap_cmd(
 @click.argument("name")
 @click.option("--dir", "root", type=click.Path(path_type=Path), default=Path("."))
 @click.option("--domain", required=True, help="Site domain, e.g. bbq-2026.events.example.com.")
-@click.option("--zone-id", required=True, help="Route53 zone id (bootstrap zone_ids output).")
-@click.option("--role-arn", required=True, help="Deploy role ARN (bootstrap deploy_role_arn).")
-@click.option("--state-bucket", required=True, help="Terraform state bucket name.")
-@click.option("--timezone", default="America/Chicago", show_default=True)
-@click.option("--branch", default="default", show_default=True, help="Deployable branch.")
-@click.option("--region", default="us-east-1", show_default=True)
-@click.option("--ref", default="default", show_default=True, help="partyplanner ref to pin.")
+@click.option("--zone-id", default=None, help="Route53 zone id (default: bootstrap outputs).")
+@click.option("--role-arn", default=None, help="Deploy role ARN (default: bootstrap outputs).")
+@click.option(
+    "--state-bucket", default=None, help="Terraform state bucket (default: partyplanner.yaml)."
+)
+@click.option("--timezone", default=None, help="[default: partyplanner.yaml or America/Chicago]")
+@click.option("--branch", default=None, help="Deployable branch [default: partyplanner.yaml].")
+@click.option("--region", default=None, help="[default: partyplanner.yaml or us-east-1]")
+@click.option("--ref", default=None, help="partyplanner ref to pin [default: partyplanner.yaml].")
+@click.option("--force", is_flag=True, help="Regenerate over existing files (keeps occasion.yaml).")
 def scaffold_occasion_cmd(
     name: str,
     root: Path,
     domain: str,
-    zone_id: str,
-    role_arn: str,
-    state_bucket: str,
-    timezone: str,
-    branch: str,
-    region: str,
-    ref: str,
+    zone_id: str | None,
+    role_arn: str | None,
+    state_bucket: str | None,
+    timezone: str | None,
+    branch: str | None,
+    region: str | None,
+    ref: str | None,
+    force: bool,
 ) -> None:
-    """Write occasions/NAME (config stub, Terraform root) and its workflows."""
+    """Write occasions/NAME (config stub, Terraform root) and its workflows.
+
+    Shared settings come from partyplanner.yaml and the applied bootstrap
+    root's Terraform outputs; the options above override them.
+    """
     from .scaffold import scaffold_occasion
 
     try:
-        paths = scaffold_occasion(
+        written, kept = scaffold_occasion(
             root,
             name,
             domain=domain,
@@ -171,11 +192,14 @@ def scaffold_occasion_cmd(
             branch=branch,
             region=region,
             ref=ref,
+            force=force,
         )
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
-    for path in paths:
+    for path in written:
         click.echo(f"wrote {path}")
+    for path in kept:
+        click.echo(f"kept {path}")
     click.echo(f"next: edit occasions/{name}/occasion.yaml, then partyplanner mint it")
 
 

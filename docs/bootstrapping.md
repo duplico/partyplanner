@@ -86,7 +86,10 @@ partyplanner scaffold bootstrap \
 ```
 
 (`--branch` if your default branch isn't named `default`; `--budget-limit`
-defaults to 10 USD/month.) Review the generated file, then apply — the backend
+defaults to 10 USD/month.) This also writes `partyplanner.yaml` at the repo
+root — shared defaults (state bucket from `$TF_STATE_BUCKET`, region, branch,
+ref) that later `scaffold occasion` runs read so you don't re-enter them.
+Commit it. Review the generated files, then apply — the backend
 block deliberately omits the bucket name so it comes from step 1's variable:
 
 ```bash
@@ -130,14 +133,14 @@ deploy/destroy workflows calling partyplanner's reusable ones. Generate all of
 it from the repo root:
 
 ```bash
-partyplanner scaffold occasion bbq-2026 \
-    --domain bbq-2026.events.example.com \
-    --zone-id Z0123456789EXAMPLE \
-    --role-arn arn:aws:iam::123456789012:role/partyplanner-deploy \
-    --state-bucket "$TF_STATE_BUCKET"
+partyplanner scaffold occasion bbq-2026 --domain bbq-2026.events.example.com
 ```
 
-which writes:
+Everything else is inferred: the state bucket/region/branch/ref come from
+`partyplanner.yaml`, and the deploy role ARN and zone id come from the applied
+bootstrap root's Terraform outputs (the zone is matched against `--domain`).
+Each can be overridden with a flag (`--zone-id`, `--role-arn`,
+`--state-bucket`, ...) if you need to. It writes:
 
 ```
 occasions/
@@ -149,9 +152,33 @@ occasions/
 ```
 
 The scaffolds pin partyplanner at `?ref=default`/`@default` while you iterate
-(`--ref` to change); switch to a release tag once things settle. The destroy
-workflow is manual-only by design — never wire it to config deletion — and
-exports a final RSVP snapshot artifact before tearing the capsule down.
+(`--ref`, or set `ref:` in `partyplanner.yaml`); switch to a release tag once
+things settle. The destroy workflow is manual-only by design — never wire it
+to config deletion — and exports a final RSVP snapshot artifact before
+tearing the capsule down.
+
+### Regenerating as partyplanner evolves
+
+Generated files are never silently overwritten, but you can refresh them from
+the current templates with `--force` — e.g. after bumping `ref:` in
+`partyplanner.yaml` or upgrading the CLI:
+
+```bash
+partyplanner scaffold bootstrap --force ...same flags as before...
+partyplanner scaffold occasion bbq-2026 --domain bbq-2026.events.example.com --force
+```
+
+`--force` regenerates the Terraform roots and workflows but always keeps an
+existing `occasion.yaml` (it holds your edits, minted ids, and live tokens).
+Review the diff with git before committing. If your events repo predates
+`partyplanner.yaml`, create it by hand:
+
+```yaml
+state_bucket: your-tf-state-bucket
+region: us-east-1
+branch: default
+ref: default
+```
 
 ### First deploy checklist
 
