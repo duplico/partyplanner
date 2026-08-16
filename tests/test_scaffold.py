@@ -46,6 +46,7 @@ def test_scaffolded_workflows_parse_and_wire_inputs(tmp_path):
         assert job["with"]["role_to_assume"].startswith("arn:aws:iam::")
         assert job["with"]["partyplanner_ref"] == "default"
         assert job["with"]["aws_region"] == "us-east-1"
+        assert job["secrets"] == "inherit"
     assert deploy["on"]["push"]["paths"] == ["occasions/bbq-2026/**"]
     assert destroy["on"] == "workflow_dispatch"
 

@@ -17,3 +17,5 @@ jobs:
       tf_state_bucket: {{ state_bucket }}
       partyplanner_ref: {{ ref }}
       aws_region: {{ region }}
+    # only needed for the static-key fallback; harmless with OIDC
+    secrets: inherit
