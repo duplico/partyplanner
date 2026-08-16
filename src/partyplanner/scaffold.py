@@ -9,6 +9,7 @@ workflows).
 from __future__ import annotations
 
 import re
+from datetime import date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -20,7 +21,10 @@ NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}\Z")
 GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 ZONE_ID_RE = re.compile(r"^Z[A-Z0-9]{1,31}\Z")
 ROLE_ARN_RE = re.compile(r"^arn:aws:iam::\d{12}:role/[\w+=,.@/-]+\Z")
-BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\Z")
+BUCKET_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\Z")
+IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}\Z")
+BUCKET_RESERVED_PREFIXES = ("xn--", "sthree-", "amzn-s3-demo-")
+BUCKET_RESERVED_SUFFIXES = ("-s3alias", "--ol-s3", "--x-s3", "--table-s3")
 HOSTNAME_RE = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\Z")
 REF_RE = re.compile(r"^[A-Za-z0-9._/-]{1,128}\Z")
 REGION_RE = re.compile(r"^[a-z]{2}(-[a-z]+)+-\d\Z")
@@ -39,16 +43,38 @@ def _check(pattern: re.Pattern[str], value: str, what: str) -> str:
     return value
 
 
+def _check_bucket(value: str) -> str:
+    ok = (
+        3 <= len(value) <= 63
+        and BUCKET_RE.match(value)
+        and not IPV4_RE.match(value)
+        and not value.startswith(BUCKET_RESERVED_PREFIXES)
+        and not value.endswith(BUCKET_RESERVED_SUFFIXES)
+    )
+    if not ok:
+        raise ConfigError(f"state bucket {value!r} is not a valid S3 bucket name")
+    return value
+
+
 def _write_all(files: list[tuple[Path, str]]) -> list[Path]:
-    """Write all files or none: existence is checked up front so a collision
-    on any target leaves nothing half-created."""
+    """Write all files or none. Existence is checked up front, files are
+    opened exclusively (never truncating something that appeared since the
+    check), and files written so far are removed if a later write fails."""
     existing = [path for path, _ in files if path.exists()]
     if existing:
         listing = ", ".join(str(p) for p in existing)
         raise ConfigError(f"refusing to overwrite existing {listing}")
-    for path, content in files:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+    written: list[Path] = []
+    try:
+        for path, content in files:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("x", encoding="utf-8") as f:
+                f.write(content)
+            written.append(path)
+    except OSError as e:
+        for path in written:
+            path.unlink(missing_ok=True)
+        raise ConfigError(f"scaffold write failed, nothing created: {e}") from e
     return [path for path, _ in files]
 
 
@@ -71,6 +97,8 @@ def scaffold_bootstrap(
     _check(REGION_RE, region, "region")
     _check(REF_RE, ref, "ref")
     _check(EMAIL_RE, budget_email, "budget email")
+    if budget_limit < 1:
+        raise ConfigError(f"budget limit {budget_limit!r} must be a positive number of USD")
     content = _env.get_template("bootstrap_main.tf.j2").render(
         zones=zones,
         budget_email=budget_email,
@@ -101,7 +129,7 @@ def scaffold_occasion(
     _check(HOSTNAME_RE, domain, "domain")
     _check(ZONE_ID_RE, zone_id, "zone id")
     _check(ROLE_ARN_RE, role_arn, "role arn")
-    _check(BUCKET_RE, state_bucket, "state bucket")
+    _check_bucket(state_bucket)
     _check(REF_RE, branch, "branch")
     _check(REGION_RE, region, "region")
     _check(REF_RE, ref, "ref")
@@ -119,7 +147,7 @@ def scaffold_occasion(
         "role_arn": role_arn,
         "state_bucket": state_bucket,
         "timezone": timezone,
-        "when": "2026-06-20 15:00",
+        "when": f"{date.today() + timedelta(days=30):%Y-%m-%d} 15:00",
         "branch": branch,
         "region": region,
         "ref": ref,

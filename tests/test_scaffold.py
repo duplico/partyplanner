@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from ruamel.yaml import YAML
 
@@ -32,6 +34,7 @@ def test_scaffolded_occasion_yaml_is_valid_config(tmp_path):
     occasion = config.load(tmp_path / "occasions" / "bbq-2026" / "occasion.yaml")
     assert occasion.domain == "bbq-2026.events.example.com"
     assert occasion.title == "Bbq 2026"
+    assert occasion.events[0].when.date() > date.today()
 
 
 def test_scaffolded_workflows_parse_and_wire_inputs(tmp_path):
@@ -81,6 +84,12 @@ def test_scaffold_occasion_is_all_or_nothing(tmp_path):
         {"zone_id": "not-a-zone"},
         {"role_arn": "arn:aws:s3:::bucket"},
         {"state_bucket": "Bad_Bucket"},
+        {"state_bucket": "a..b"},
+        {"state_bucket": "a.-b"},
+        {"state_bucket": "192.168.1.1"},
+        {"state_bucket": "xn--bucket"},
+        {"state_bucket": "bucket-s3alias"},
+        {"state_bucket": "ab"},
         {"timezone": "Not/AZone"},
         {"ref": "bad ref"},
     ],
@@ -125,6 +134,17 @@ def test_scaffold_bootstrap_rejects_bad_repo(tmp_path):
             budget_email="you@example.com",
             budget_limit=10,
             github_repo="not-a-repo",
+        )
+
+
+def test_scaffold_bootstrap_rejects_nonpositive_budget(tmp_path):
+    with pytest.raises(ConfigError, match="budget limit"):
+        scaffold_bootstrap(
+            tmp_path,
+            zones=["events.example.com"],
+            budget_email="you@example.com",
+            budget_limit=0,
+            github_repo="1512-ninja/events",
         )
 
 
