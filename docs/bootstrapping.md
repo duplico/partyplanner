@@ -29,6 +29,23 @@ Upgrade later with
 `uv tool upgrade partyplanner` (or reinstall pinned to a tag:
 `uv tool install --force "partyplanner @ git+https://github.com/duplico/partyplanner@v0.1.0"`).
 
+### AWS credentials and `aws login`
+
+Terraform needs AWS credentials in the environment, not just working `aws`
+commands. If you sign in with the AWS CLI v2's `aws login`, its temporary
+credentials live in a CLI-side provider that Terraform's SDK can't read —
+`aws sts get-caller-identity` works but `terraform init` fails with
+"No valid credential sources found". Export them into your shell first:
+
+```bash
+eval "$(aws configure export-credentials --format env)"
+```
+
+The exported credentials are temporary; re-run the `eval` if a later
+Terraform command fails with an expired-token error. (Static keys under
+`[default]` in `~/.aws/credentials`, or a named profile via `AWS_PROFILE`,
+work with Terraform directly.)
+
 ## 1. Terraform state bucket
 
 Everything else is Terraform, so the state bucket is the one hand-made thing.
