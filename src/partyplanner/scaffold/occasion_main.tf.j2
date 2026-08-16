@@ -1,0 +1,32 @@
+terraform {
+  backend "s3" {
+    # bucket comes from the workflows' tf_state_bucket input (or
+    # `terraform init -backend-config="bucket=$TF_STATE_BUCKET"` locally)
+    key    = "occasions/{{ name }}/terraform.tfstate"
+    region = "{{ region }}"
+  }
+}
+
+provider "aws" {
+  region = "{{ region }}"
+}
+
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
+
+module "occasion" {
+  source = "github.com/duplico/partyplanner//modules/occasion?ref={{ ref }}"
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+  domain  = "{{ domain }}"
+  zone_id = "{{ zone_id }}"
+}
+
+output "bucket" { value = module.occasion.bucket }
+output "distribution_id" { value = module.occasion.distribution_id }
+output "table_name" { value = module.occasion.table_name }
+output "site_url" { value = module.occasion.site_url }

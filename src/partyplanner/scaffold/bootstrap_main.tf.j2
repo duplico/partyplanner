@@ -1,0 +1,93 @@
+terraform {
+  backend "s3" {
+    # bucket comes from `terraform init -backend-config="bucket=$TF_STATE_BUCKET"`
+    key    = "bootstrap/terraform.tfstate"
+    region = "{{ region }}"
+  }
+}
+
+provider "aws" {
+  region = "{{ region }}"
+}
+
+module "bootstrap" {
+  source           = "github.com/duplico/partyplanner//modules/bootstrap?ref={{ ref }}"
+  zones            = [{% for zone in zones %}"{{ zone }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+  budget_email     = "{{ budget_email }}"
+  budget_limit_usd = {{ budget_limit }}
+}
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+}
+
+resource "aws_iam_role" "deploy" {
+  name = "partyplanner-deploy"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        StringLike = {
+          # Only workflows running on the default branch may assume the role —
+          # never pull-request jobs or other refs.
+          "token.actions.githubusercontent.com:sub" = "repo:{{ github_repo }}:ref:refs/heads/{{ branch }}"
+        }
+      }
+    }]
+  })
+}
+
+# The occasion module spans S3/CloudFront/ACM/Route53/API GW/Lambda/DynamoDB
+# and creates the Lambda's execution role, so the deploy role is broad. It is
+# still confined to one repo's default branch via the OIDC subject condition
+# above; scope it down further once your resource-naming conventions settle.
+resource "aws_iam_role_policy" "deploy" {
+  name = "partyplanner-deploy"
+  role = aws_iam_role.deploy.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:*",
+          "cloudfront:*",
+          "acm:*",
+          "route53:*",
+          "apigateway:*",
+          "lambda:*",
+          "dynamodb:*",
+          "logs:*",
+          "iam:GetRole", "iam:CreateRole", "iam:DeleteRole", "iam:TagRole",
+          "iam:PassRole", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies",
+          "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+          "iam:ListInstanceProfilesForRole",
+        ]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+output "zone_ids" {
+  value = module.bootstrap.zone_ids
+}
+
+output "name_servers" {
+  value = module.bootstrap.name_servers
+}
+
+output "deploy_role_arn" {
+  value = aws_iam_role.deploy.arn
+}

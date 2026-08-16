@@ -71,6 +71,8 @@ token.
 | `partyplanner links <config>` | print invitation URLs |
 | `partyplanner sync-links <config> --table <name>` | upsert link records to DynamoDB; delete revoked |
 | `partyplanner export-rsvps --table <name>` | dump all RSVPs as CSV |
+| `partyplanner scaffold bootstrap ...` | generate the events-repo bootstrap Terraform root (see [docs/bootstrapping.md](docs/bootstrapping.md)) |
+| `partyplanner scaffold occasion <name> ...` | generate an occasion capsule (config stub, Terraform root, workflows) |
 
 `mint` is a local, committed step: `render` refuses to run with missing ids or
 tokens so that CI deploys are deterministic and **redeploys never rotate
