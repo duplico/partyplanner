@@ -63,6 +63,33 @@ def test_pages_suppress_cross_origin_referrer(tmp_path: Path):
     assert '<meta name="referrer" content="same-origin">' in page
 
 
+def test_default_favicon_linked_and_shipped(tmp_path: Path):
+    occasion = _asset_occasion(tmp_path)
+    render(occasion, tmp_path, tmp_path / "out")
+    site = tmp_path / "out" / "site"
+    assert (site / "assets" / "favicon.svg").exists()
+    for page in ("index.html", "i/fixtureassettoken222/index.html"):
+        assert '<link rel="icon" href="/assets/favicon.svg">' in (site / page).read_text()
+
+
+def test_custom_favicon_copied_to_site_root(tmp_path: Path):
+    (tmp_path / "fav.ico").write_bytes(b"\x00\x00\x01\x00")
+    occasion = _asset_occasion(tmp_path, favicon="fav.ico")
+    render(occasion, tmp_path, tmp_path / "out")
+    site = tmp_path / "out" / "site"
+    assert (site / "favicon.ico").read_bytes() == b"\x00\x00\x01\x00"
+    assert '<link rel="icon" href="/favicon.ico">' in (site / "index.html").read_text()
+
+
+def test_favicon_path_escaping_config_dir_rejected(tmp_path: Path):
+    (tmp_path / "evil.ico").write_bytes(b"\x00")
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    occasion = _asset_occasion(config_dir, favicon="../evil.ico")
+    with pytest.raises(ConfigError, match="escapes"):
+        render(occasion, config_dir, tmp_path / "out")
+
+
 def test_asset_path_escaping_config_dir_rejected(tmp_path: Path):
     (tmp_path / "evil.svg").write_text("<svg></svg>")
     config_dir = tmp_path / "config"
