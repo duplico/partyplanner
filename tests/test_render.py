@@ -234,6 +234,6 @@ def test_render_calendar_links(tmp_path: Path):
     render(occasion, FIXTURES / "bbq", tmp_path)
     page = (tmp_path / "site" / "i" / "fixturebbqgroupchat2" / "index.html").read_text()
     assert "https://calendar.google.com/calendar/render?action=TEMPLATE" in page
-    assert "https://outlook.live.com/calendar/0/action/compose?" in page
+    assert "https://outlook.live.com/calendar/0/deeplink/compose?" in page
     assert "https://calendar.yahoo.com/?" in page
     assert 'href="bbq.ics" download' in page

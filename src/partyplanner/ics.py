@@ -69,10 +69,11 @@ def calendar_links(occasion: Occasion, event: Event) -> list[dict[str, str]]:
     )
     outlook = urlencode(
         {
+            "path": "/calendar/action/compose",
             "rru": "addevent",
             "subject": title,
-            "startdt": _utc(start, occasion).isoformat(),
-            "enddt": _utc(end, occasion).isoformat(),
+            "startdt": _utc(start, occasion).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "enddt": _utc(end, occasion).strftime("%Y-%m-%dT%H:%M:%SZ"),
             **({"body": details} if details else {}),
             **({"location": event.where} if event.where else {}),
         }
@@ -91,7 +92,7 @@ def calendar_links(occasion: Occasion, event: Event) -> list[dict[str, str]]:
         {"label": "Google", "url": f"https://calendar.google.com/calendar/render?{google}"},
         {
             "label": "Outlook",
-            "url": f"https://outlook.live.com/calendar/0/action/compose?{outlook}",
+            "url": f"https://outlook.live.com/calendar/0/deeplink/compose?{outlook}",
         },
         {"label": "Yahoo", "url": f"https://calendar.yahoo.com/?{yahoo}"},
     ]

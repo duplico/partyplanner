@@ -55,8 +55,10 @@ def test_calendar_links_bbq():
     assert google.startswith("https://calendar.google.com/calendar/render?action=TEMPLATE")
     assert "dates=20260620T200000Z%2F20260620T230000Z" in google
     assert "location=123+Example+Ave" in google
-    assert outlook.startswith("https://outlook.live.com/calendar/0/action/compose?rru=addevent")
-    assert "startdt=2026-06-20T20%3A00%3A00%2B00%3A00" in outlook
+    assert outlook.startswith(
+        "https://outlook.live.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose"
+    )
+    assert "startdt=2026-06-20T20%3A00%3A00Z" in outlook
     assert yahoo.startswith("https://calendar.yahoo.com/?v=60")
     assert "st=20260620T200000Z&et=20260620T230000Z" in yahoo
 
