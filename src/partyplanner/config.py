@@ -313,9 +313,17 @@ def add_link(
     if not data.get("links"):
         data["links"] = CommentedSeq()
     data["links"].append(entry)
+    original = links_path.read_text() if links_path.exists() else None
     with links_path.open("w") as f:
         yaml.dump(data, f)
-    load(config_path)  # re-validate the merged result
+    try:
+        load(config_path)  # re-validate the merged result
+    except ConfigError:
+        if original is None:
+            links_path.unlink()
+        else:
+            links_path.write_text(original)
+        raise
     return link
 
 
@@ -342,9 +350,14 @@ def revoke_link(config_path: Path, token: str) -> None:
     if not data.get("revoked"):
         data["revoked"] = CommentedSeq()
     data["revoked"].append(token)
+    original = links_path.read_text()
     with links_path.open("w") as f:
         yaml.dump(data, f)
-    load(config_path)  # re-validate the merged result
+    try:
+        load(config_path)  # re-validate the merged result
+    except ConfigError:
+        links_path.write_text(original)
+        raise
 
 
 def mint(path: Path) -> list[str]:

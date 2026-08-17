@@ -114,6 +114,21 @@ def test_add_and_revoke_tolerate_null_sections(tmp_path: Path):
     assert occasion.revoked == [link.token]
 
 
+def test_revoke_link_rolls_back_when_merged_config_is_invalid(tmp_path: Path):
+    src = _config(tmp_path)
+    config.add_link(src, ["bonfire"])
+    doomed = config.add_link(src, "all")
+    assert doomed.token is not None
+    # break the merged config independently of the revoke
+    src.write_text(
+        BASE.replace("  - id: bonfire\n    title: Bonfire\n    when: 2026-06-20 20:00\n", "")
+    )
+    before = (tmp_path / LINKS_FILENAME).read_text()
+    with pytest.raises(ConfigError):
+        config.revoke_link(src, doomed.token)
+    assert (tmp_path / LINKS_FILENAME).read_text() == before
+
+
 def test_revoke_link_moves_token_to_revoked(tmp_path: Path):
     src = _config(tmp_path)
     link = config.add_link(src, "all")
