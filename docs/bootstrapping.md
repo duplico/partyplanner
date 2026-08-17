@@ -214,3 +214,27 @@ ref: default
 - [ ] DNS delegation verified (`dig +short NS <zone>`)
 - [ ] Merge; watch the run, then grab invitation URLs from the `links-*`
       artifact (or `partyplanner links` locally)
+
+### Accounts with the minimum Lambda concurrency quota
+
+New/low-usage AWS accounts often have a Lambda concurrent-executions quota of
+10 (the minimum). The RSVP Lambda reserves 5 as a cost guardrail, which such
+accounts reject:
+
+```
+InvalidParameterValueException: Specified ReservedConcurrentExecutions for
+function decreases account's UnreservedConcurrentExecution below its minimum
+value of [10].
+```
+
+Either request a quota increase (Service Quotas → Lambda → Concurrent
+executions; the normal default is 1000), or disable the reservation in the
+occasion's `terraform/main.tf` — API Gateway throttling still caps request
+rates:
+
+```hcl
+module "occasion" {
+  # ...
+  lambda_reserved_concurrency = -1
+}
+```
