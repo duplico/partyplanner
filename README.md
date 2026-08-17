@@ -53,6 +53,7 @@ links:
 $ partyplanner mint occasion.yaml      # writes ids + tokens back into the file
 event 'BBQ': id = bbq
 link 'group chat link, forward freely': token = k7f3q2vmxw4tzr6ehb2a
+$ partyplanner preview occasion.yaml   # local preview at http://127.0.0.1:8000
 $ partyplanner render occasion.yaml    # out/site/ + out/links.csv
 $ partyplanner links occasion.yaml
 group chat link, forward freely	https://bbq-2026.events.example.com/i/k7f3q2vmxw4tzr6ehb2a/
@@ -68,6 +69,7 @@ optional end times, per-occasion CSS overrides, and a revoked token.
 | --- | --- |
 | `partyplanner validate <config>` | validate an occasion config |
 | `partyplanner mint <config>` | fill in missing event ids and link tokens (writes back, preserves comments) |
+| `partyplanner preview <config>` | render + serve locally with an in-memory RSVP API; prints a URL per link view |
 | `partyplanner render <config> --out out` | render static site, ICS files, and `links.csv` |
 | `partyplanner links <config>` | print invitation URLs |
 | `partyplanner sync-links <config> --table <name>` | upsert link records to DynamoDB; delete revoked |
@@ -80,6 +82,11 @@ tokens so that CI deploys are deterministic and **redeploys never rotate
 links**. To force-rotate a leaked link, move its token to `revoked:`, delete it
 from the link entry, and redeploy — the old URL 404s and a replacement is
 minted.
+
+`preview` needs no mint and no AWS: unminted events/links get preview-only
+ids/tokens (the file is untouched), every invitation link's view gets its own
+local URL, and the RSVP forms work against an in-memory stand-in for the API
+that is discarded when the server stops.
 
 ## Architecture
 

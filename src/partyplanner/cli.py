@@ -60,6 +60,28 @@ def render(config_path: Path, out: Path) -> None:
 
 @main.command()
 @click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@click.option("--port", default=8000, show_default=True, help="Local port (0 picks a free one).")
+@click.option("--open", "open_browser", is_flag=True, help="Open the landing page in a browser.")
+def preview(config_path: Path, port: int, open_browser: bool) -> None:
+    """Render and serve the site locally, with an in-memory RSVP API.
+
+    Prints a local URL for the landing page and each invitation link so every
+    view can be checked. Unminted events/links get preview-only ids/tokens
+    (the config file is never modified). RSVPs work but live in memory only.
+    """
+    from .preview import run_preview
+
+    occasion = _load(config_path)
+    try:
+        run_preview(occasion, config_path.parent, port, open_browser, echo=click.echo)
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
+    except OSError as e:
+        raise click.ClickException(f"cannot serve on port {port}: {e}") from e
+
+
+@main.command()
+@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
 def links(config_path: Path) -> None:
     """Print the invitation links for an occasion."""
     occasion = _load(config_path)
