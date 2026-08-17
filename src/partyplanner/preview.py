@@ -395,4 +395,5 @@ def run_preview(
             pass
         finally:
             stop.set()
+            watcher.join(timeout=5)
             server.server_close()
