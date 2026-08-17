@@ -39,9 +39,9 @@ or `bootstrap_outputs` errors before even calling terraform.
   comes from the workflow's `tf_state_bucket` input).
 - Without `--force`, rerunning errors `refusing to overwrite existing ... (--force
   to regenerate)` and exits 1. With `--force`, everything is rewritten EXCEPT an
-  existing `occasions/NAME/occasion.yaml`, reported as `kept <path>` (it holds
-  minted ids/tokens). Bootstrap has no preserve set — `--force` rewrites
-  partyplanner.yaml too.
+  existing `occasions/NAME/occasion.yaml` (it holds minted ids/tokens) and an
+  existing root `partyplanner.yaml` (user-editable) — both reported as
+  `kept <path>`.
 - Error messages to assert verbatim-ish: "no state bucket: pass --state-bucket
   or set state_bucket in partyplanner.yaml"; "no bootstrap zone matches domain
   ...; pass --zone-id explicitly"; "no bootstrap root at ...; run `partyplanner
