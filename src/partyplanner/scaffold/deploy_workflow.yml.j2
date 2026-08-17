@@ -2,7 +2,9 @@ name: deploy-{{ name }}
 on:
   push:
     branches: ["{{ branch }}"]
-    paths: ["occasions/{{ name }}/**"]
+    # .links.yaml listed explicitly: glob implementations differ on whether
+    # `**` matches dot-prefixed files, and a link revoke must always deploy.
+    paths: ["occasions/{{ name }}/**", "occasions/{{ name }}/.links.yaml"]
   workflow_dispatch:
 
 permissions:
