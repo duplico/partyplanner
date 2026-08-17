@@ -125,14 +125,14 @@ def test_scaffold_bootstrap_writes_root(tmp_path):
         zones=["allhallowtide.party", "events.example.com"],
         budget_email="you@example.com",
         budget_limit=10,
-        github_repo="1512-ninja/events",
+        github_repo="1512-link/events",
         state_bucket="my-tf-state",
     )
     assert kept == []
     assert paths == [tmp_path / "bootstrap" / "main.tf", tmp_path / "partyplanner.yaml"]
     tf = paths[0].read_text()
     assert 'zones            = ["allhallowtide.party", "events.example.com"]' in tf
-    assert "repo:1512-ninja/events:ref:refs/heads/default" in tf
+    assert "repo:1512-link/events:ref:refs/heads/default" in tf
     assert 'bucket = "my-tf-state"' in tf
     assert 'key    = "bootstrap/terraform.tfstate"' in tf
     assert load_repo_config(tmp_path) == {
@@ -149,7 +149,7 @@ def test_scaffold_bootstrap_without_bucket_leaves_it_commented(tmp_path):
         zones=["events.example.com"],
         budget_email="you@example.com",
         budget_limit=10,
-        github_repo="1512-ninja/events",
+        github_repo="1512-link/events",
     )
     assert "state_bucket" not in load_repo_config(tmp_path)
     assert "# state_bucket:" in (tmp_path / "partyplanner.yaml").read_text()
@@ -165,7 +165,7 @@ def test_scaffold_bootstrap_force_keeps_edited_repo_config(tmp_path):
             zones=["events.example.com"],
             budget_email="you@example.com",
             budget_limit=10,
-            github_repo="1512-ninja/events",
+            github_repo="1512-link/events",
             state_bucket="my-tf-state",
             **kwargs,
         )
@@ -218,7 +218,7 @@ def test_scaffold_bootstrap_rejects_nonpositive_budget(tmp_path):
             zones=["events.example.com"],
             budget_email="you@example.com",
             budget_limit=0,
-            github_repo="1512-ninja/events",
+            github_repo="1512-link/events",
         )
 
 
@@ -233,7 +233,7 @@ def test_scaffold_bootstrap_rejects_bad_email(tmp_path, email):
             zones=["events.example.com"],
             budget_email=email,
             budget_limit=10,
-            github_repo="1512-ninja/events",
+            github_repo="1512-link/events",
         )
 
 
@@ -254,7 +254,7 @@ def test_repo_config_roundtrips_numeric_looking_values(tmp_path):
         zones=["events.example.com"],
         budget_email="you@example.com",
         budget_limit=10,
-        github_repo="1512-ninja/events",
+        github_repo="1512-link/events",
         state_bucket="123456",
         ref="2026.1",
     )
