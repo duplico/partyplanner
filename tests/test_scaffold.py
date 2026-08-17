@@ -56,7 +56,10 @@ def test_scaffolded_workflows_parse_and_wire_inputs(tmp_path):
         assert job["with"]["partyplanner_ref"] == "default"
         assert job["with"]["aws_region"] == "us-east-1"
         assert job["secrets"] == "inherit"
-    assert deploy["on"]["push"]["paths"] == ["occasions/bbq-2026/**"]
+    assert deploy["on"]["push"]["paths"] == [
+        "occasions/bbq-2026/**",
+        "occasions/bbq-2026/.links.yaml",
+    ]
     assert "workflow_dispatch" in deploy["on"]
     assert destroy["on"] == "workflow_dispatch"
 
