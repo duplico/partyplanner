@@ -316,3 +316,25 @@ def test_reload_keeps_old_site_when_render_fails(tmp_path: Path):
     assert reload_state.version == 0
     assert any("reload failed" in m for m in messages)
     assert "Good" in (out_dir / "site" / "i" / TOKEN / "index.html").read_text()
+
+
+def test_snapshot_watches_dot_files_but_not_dot_directories(tmp_path: Path):
+    config_path = _write_config(tmp_path / "cfg", "T")
+    (tmp_path / "cfg" / ".links.yaml").write_text("links: []\n")
+    occasion = config.load(config_path)
+    reloader = Reloader(
+        config_path,
+        tmp_path / "out",
+        PreviewStore(occasion),
+        ReloadState(),
+        "http://x",
+        occasion,
+        echo=lambda _: None,
+    )
+    before = reloader.snapshot()
+    assert str(config_path) in before
+    assert str(tmp_path / "cfg" / ".links.yaml") in before
+    git = tmp_path / "cfg" / ".git"
+    git.mkdir()
+    (git / "index").write_text("churn")
+    assert reloader.snapshot() == before

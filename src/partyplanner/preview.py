@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import re
 import shutil
 import tempfile
@@ -292,13 +293,19 @@ class Reloader:
         self.echo = echo
 
     def snapshot(self) -> dict[str, int]:
+        """Mtimes of files under the config dir, skipping dot-directories
+        (.git, .terraform, …) whose churn would cause spurious reloads.
+        Dot-files like .links.yaml are still watched.
+        """
         files: dict[str, int] = {}
-        for p in self.config_dir.rglob("*"):
-            try:
-                if p.is_file():
+        for root, dirs, names in os.walk(self.config_dir):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for name in names:
+                p = Path(root) / name
+                try:
                     files[str(p)] = p.stat().st_mtime_ns
-            except OSError:
-                continue
+                except OSError:
+                    continue
         return files
 
     def reload(self) -> bool:
