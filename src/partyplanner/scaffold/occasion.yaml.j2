@@ -1,5 +1,6 @@
-# Run `partyplanner mint occasions/{{ name }}/occasion.yaml` after editing to
-# fill in event ids and link tokens, then commit the result.
+# After editing: run `partyplanner mint occasions/{{ name }}/occasion.yaml` to
+# fill in event ids, then `partyplanner link add` to create invitation links
+# (written to .links.yaml beside this file). Commit both.
 title: "{{ title }}"
 domain: {{ domain }}
 timezone: {{ timezone }}
@@ -20,5 +21,3 @@ events:
     # photo: ./assets/event.jpg
     # accent: "#3fa7f2"        # optional per-event accent color
     where: EDIT ME
-links:
-  - note: group chat link, forward freely
