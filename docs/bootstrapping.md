@@ -208,9 +208,12 @@ ref: default
 
 ### First deploy checklist
 
-- [ ] `occasion.yaml` edited (title, events, links) and
-      `partyplanner mint occasions/bbq-2026/occasion.yaml` run locally, result
-      committed (ids + tokens in the YAML — deploys never rotate links)
+- [ ] `occasion.yaml` edited (title, events, scopes) and
+      `partyplanner mint occasions/bbq-2026/occasion.yaml` run locally
+      (fills in event ids), result committed
+- [ ] At least one link created with
+      `partyplanner link add occasions/bbq-2026/occasion.yaml` and the
+      generated `.links.yaml` committed (deploys never rotate links)
 - [ ] DNS delegation verified (`dig +short NS <zone>`)
 - [ ] Merge; watch the run, then grab invitation URLs from the `links-*`
       artifact (or `partyplanner links` locally)

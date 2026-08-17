@@ -366,7 +366,7 @@ def mint(path: Path) -> list[str]:
     Preserves comments and formatting. Returns human-readable notes of what changed.
     """
     data = load_raw(path)
-    occasion = parse(data, path)  # validate before mutating
+    occasion = parse(merged_raw(path), path)  # validate the merged view before mutating
     notes: list[str] = []
 
     events = data.get("events")
@@ -391,7 +391,7 @@ def mint(path: Path) -> list[str]:
     if notes:
         with path.open("w") as f:
             yaml.dump(data, f)
-        parse(load_raw(path), path)  # re-validate what we wrote
+        parse(merged_raw(path), path)  # re-validate what we wrote
     return notes
 
 

@@ -56,7 +56,8 @@ or `bootstrap_outputs` errors before even calling terraform.
   --role-arn explicitly" (test the last one with `env PATH=<dirs without
   terraform> uv run partyplanner ...`; note /usr/local/bin has a real terraform).
 - Continuity: fill `where: EDIT ME` in the generated occasion.yaml, then
-  `mint` → `validate` → `render` should all succeed; rendered per-link page has
+  `mint` → `link add` (the stub has no links; render requires at least one) →
+  `validate` → `render` should all succeed; rendered per-link page has
   OG tags and an ICS next to index.html.
 
 ## Gotchas

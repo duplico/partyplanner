@@ -55,6 +55,13 @@ def test_duplicate_token_across_files_rejected(tmp_path: Path):
         config.load(src)
 
 
+def test_mint_validates_merged_view(tmp_path: Path):
+    src = _config(tmp_path, BASE + "links:\n  - token: fixturetokendupes222\n")
+    (tmp_path / LINKS_FILENAME).write_text("links:\n  - token: fixturetokendupes222\n")
+    with pytest.raises(ConfigError, match="duplicate link tokens"):
+        config.mint(src)
+
+
 def test_links_file_with_unexpected_keys_rejected(tmp_path: Path):
     src = _config(tmp_path)
     (tmp_path / LINKS_FILENAME).write_text("links: []\nevents: []\n")
