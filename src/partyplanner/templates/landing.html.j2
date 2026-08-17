@@ -5,7 +5,7 @@
   <h1>{{ occasion.title }}</h1>
 </header>
 {% if landing %}
-  {% if landing.blurb %}<p class="blurb">{{ landing.blurb }}</p>{% endif %}
+  {% if landing_blurb %}<div class="blurb">{{ landing_blurb }}</div>{% endif %}
   {% if landing_photo %}<img class="hero" src="{{ landing_photo }}" alt="">{% endif %}
   {% if embed_html %}<div class="embed">{{ embed_html | safe }}</div>{% endif %}
 {% else %}

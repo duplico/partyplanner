@@ -14,7 +14,9 @@ photo, blurb, time, place, link in the group chat, done."
   DynamoDB table. Occasions share nothing; retire them independently.
 - An occasion contains **events** (dinner, bar crawl, candy crew, main party…),
   each with a time, place, blurb, and an RSVP list (or `rsvp: none` for
-  informational cards like a live stream link).
+  informational cards like a live stream link). Blurbs are **Markdown**
+  (raw HTML is escaped); single newlines flow within a paragraph, blank lines
+  start a new one.
 - A **link** is the unit of invitation: an unguessable URL whose **scope** is a
   subset of the occasion's events. The link is both the invitation and the
   credential — no logins. Forward it freely; recipients self-identify by name.

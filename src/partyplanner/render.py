@@ -9,6 +9,7 @@ from jinja2 import Environment, PackageLoader
 
 from .config import ConfigError, Occasion, require_complete
 from .ics import calendar_links, event_ics
+from .md import md_html, md_plain
 
 env = Environment(
     loader=PackageLoader("partyplanner", "templates"),
@@ -102,7 +103,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
             "title": event.title,
             "when": _fmt_when(event.when, event.end, occasion) if event.when else None,
             "where": event.where,
-            "blurb": event.blurb,
+            "blurb": md_html(event.blurb) if event.blurb else None,
             "photo": asset(event.photo),
             "accent": event.accent,
             "rsvp_open": event.rsvp == "open",
@@ -112,17 +113,24 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
             "ics": f"{event_id}.ics" if event.when is not None else None,
         }
 
+    blurb_first_line = (occasion.blurb or "").strip().splitlines()
     base_ctx = {
         "occasion": occasion,
         "occasion_photo": occasion_photo,
+        "occasion_blurb": md_html(occasion.blurb) if (occasion.blurb or "").strip() else None,
         "favicon": favicon,
         "theme_css": _theme_css(occasion),
         "og_image": f"https://{occasion.domain}{occasion_photo}" if occasion_photo else None,
-        "og_description": ((occasion.blurb or "").strip() or "You're invited.").splitlines()[0],
+        "og_description": (md_plain(blurb_first_line[0]) if blurb_first_line else "")
+        or "You're invited.",
     }
 
-    landing_ctx = dict(base_ctx, landing=occasion.landing, landing_photo=None, embed_html=None)
+    landing_ctx = dict(
+        base_ctx, landing=occasion.landing, landing_blurb=None, landing_photo=None, embed_html=None
+    )
     if occasion.landing:
+        if occasion.landing.blurb:
+            landing_ctx["landing_blurb"] = md_html(occasion.landing.blurb)
         landing_ctx["landing_photo"] = asset(occasion.landing.photo)
         if occasion.landing.embed:
             landing_ctx["embed_html"] = _contained(config_dir, occasion.landing.embed).read_text()

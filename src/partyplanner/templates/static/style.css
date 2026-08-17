@@ -25,7 +25,7 @@ main {
 header { text-align: center; margin-bottom: 2rem; }
 h1 { font-size: 2rem; margin: 0.75rem 0 0.25rem; }
 .hero { width: 100%; border-radius: 12px; max-height: 320px; object-fit: cover; }
-.blurb { color: var(--muted); white-space: pre-line; }
+.blurb { color: var(--muted); }
 
 .event {
   background: var(--card);
@@ -41,7 +41,10 @@ h1 { font-size: 2rem; margin: 0.75rem 0 0.25rem; }
 .where { color: var(--muted); margin: 0.25rem 0; }
 .cal-links { color: var(--muted); font-size: 0.9em; margin: 0.25rem 0; }
 .cal-links a { color: var(--accent); }
-.event-blurb { white-space: pre-line; }
+.event-blurb p, .blurb p { margin: 0.25rem 0 0.6rem; }
+.event-blurb ul, .event-blurb ol, .blurb ul, .blurb ol { margin: 0.25rem 0 0.6rem; padding-left: 1.3rem; }
+.event-blurb :last-child, .blurb :last-child { margin-bottom: 0; }
+.event-blurb a, .blurb a { color: var(--accent); }
 
 .rsvp { border-top: 1px solid #eee7de; margin-top: 1rem; padding-top: 0.75rem; }
 .rsvp h3 { margin: 0 0 0.5rem; font-size: 1rem; }

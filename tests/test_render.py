@@ -130,6 +130,55 @@ def test_embed_path_escaping_config_dir_rejected(tmp_path: Path):
         render(occasion, config_dir, tmp_path / "out")
 
 
+def test_markdown_blurbs_render(tmp_path: Path):
+    occasion = _asset_occasion(
+        tmp_path,
+        blurb="**Big** party\nyou're invited\n\nSecond paragraph.",
+        events=[
+            {
+                "id": "a",
+                "title": "A",
+                "when": "2026-06-20 15:00",
+                "blurb": "Bring [a chair](https://example.com/chairs).",
+            }
+        ],
+    )
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    # soft line break stays in one paragraph; blank line starts a new one
+    assert "<p><strong>Big</strong> party\nyou're invited</p>" in page
+    assert "<p>Second paragraph.</p>" in page
+    assert '<a href="https://example.com/chairs">a chair</a>' in page
+    # og:description is the first line with markup stripped
+    assert 'og:description" content="Big party"' in page
+
+
+def test_markdown_landing_blurb(tmp_path: Path):
+    occasion = _asset_occasion(tmp_path, landing={"blurb": "watch *live*"})
+    render(occasion, tmp_path, tmp_path / "out")
+    index = (tmp_path / "out" / "site" / "index.html").read_text()
+    assert "watch <em>live</em>" in index
+
+
+def test_markdown_raw_html_and_bad_links_neutralized(tmp_path: Path):
+    occasion = _asset_occasion(
+        tmp_path,
+        events=[
+            {
+                "id": "a",
+                "title": "A",
+                "when": "2026-06-20 15:00",
+                "blurb": "<img src=x onerror=alert(1)>\n\n[click](javascript:alert(1))",
+            }
+        ],
+    )
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert "&lt;img" in page
+    assert "<img src=x" not in page
+    assert 'href="javascript:' not in page
+
+
 def test_config_html_is_autoescaped(tmp_path: Path):
     occasion = _asset_occasion(tmp_path, blurb='<script>alert("x")</script>')
     render(occasion, tmp_path, tmp_path / "out")
