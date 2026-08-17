@@ -1,7 +1,8 @@
 terraform {
   backend "s3" {
-    # bucket comes from `terraform init -backend-config="bucket=$TF_STATE_BUCKET"`
-    key    = "bootstrap/terraform.tfstate"
+{% if state_bucket %}    bucket = "{{ state_bucket }}"
+{% else %}    # bucket comes from `terraform init -backend-config="bucket=$TF_STATE_BUCKET"`
+{% endif %}    key    = "bootstrap/terraform.tfstate"
     region = "{{ region }}"
   }
 }

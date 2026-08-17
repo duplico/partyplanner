@@ -27,7 +27,8 @@ REPO_CONFIG = "partyplanner.yaml"
 REPO_CONFIG_KEYS = ("state_bucket", "region", "branch", "ref", "timezone")
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}\Z")
-GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
+# optionally ID-pinned (`owner@id/repo@id`), for orgs issuing pinned OIDC subs
+GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+(@\d+)?/[A-Za-z0-9_.-]+(@\d+)?\Z")
 ZONE_ID_RE = re.compile(r"^Z[A-Z0-9]{1,31}\Z")
 ROLE_ARN_RE = re.compile(r"^arn:aws:iam::\d{12}:role/[\w+=,.@/-]+\Z")
 BUCKET_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\Z")
@@ -142,7 +143,7 @@ def bootstrap_outputs(root: Path) -> dict:
     bootstrap_dir = root / "bootstrap"
     if not (bootstrap_dir / "main.tf").exists():
         raise ConfigError(
-            f"no bootstrap root at {bootstrap_dir}; run `partyplanner scaffold bootstrap`"
+            f"no bootstrap root at {bootstrap_dir}; run `partyplanner init`"
             " and apply it, or pass --zone-id and --role-arn explicitly"
         )
     try:
@@ -182,9 +183,9 @@ def _repo_config_content(*, state_bucket: str | None, region: str, branch: str, 
         else "# state_bucket: your-tf-state-bucket\n"
     )
     return (
-        "# Written by `partyplanner scaffold bootstrap`; read by\n"
-        "# `partyplanner scaffold occasion` for shared defaults, so occasions only\n"
-        "# need a name and a --domain. Safe to edit.\n"
+        "# Written by `partyplanner init`; read by `partyplanner new` for\n"
+        "# shared defaults, so occasions only need a name and a --domain.\n"
+        "# Safe to edit.\n"
         + bucket_line
         + f'region: "{region}"\n'
         + f'branch: "{branch}"\n'
@@ -222,6 +223,7 @@ def scaffold_bootstrap(
         budget_email=budget_email,
         budget_limit=budget_limit,
         github_repo=github_repo,
+        state_bucket=state_bucket,
         branch=branch,
         region=region,
         ref=ref,

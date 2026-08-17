@@ -85,28 +85,29 @@ def sync_links(config_path: Path, table_name: str) -> None:
     click.echo(f"synced {active} links, removed {stale} stale tokens")
 
 
-@main.group()
-def scaffold() -> None:
-    """Generate consumer (events) repo skeleton files."""
-
-
-@scaffold.command("bootstrap")
+@main.command("init")
 @click.option("--dir", "root", type=click.Path(path_type=Path), default=Path("."))
 @click.option("--zone", "zones", multiple=True, required=True, help="Domain to host (repeatable).")
 @click.option("--budget-email", required=True, help="Email for budget alerts.")
 @click.option("--budget-limit", default=10, show_default=True, help="Monthly budget in USD.")
-@click.option("--github-repo", required=True, help="This events repo, as ORG/REPO (for OIDC).")
+@click.option(
+    "--github-repo",
+    required=True,
+    help="This events repo, as ORG/REPO (for OIDC); ORG@ID/REPO@ID if your org"
+    " issues ID-pinned subject claims.",
+)
 @click.option(
     "--state-bucket",
     envvar="TF_STATE_BUCKET",
     default=None,
-    help="Terraform state bucket, recorded in partyplanner.yaml (default: $TF_STATE_BUCKET).",
+    help="Terraform state bucket, recorded in partyplanner.yaml and the"
+    " generated backend blocks (default: $TF_STATE_BUCKET).",
 )
 @click.option("--branch", default="default", show_default=True, help="Deployable branch.")
 @click.option("--region", default="us-east-1", show_default=True)
 @click.option("--ref", default="default", show_default=True, help="partyplanner ref to pin.")
 @click.option("--force", is_flag=True, help="Regenerate over existing files.")
-def scaffold_bootstrap_cmd(
+def init_cmd(
     root: Path,
     zones: tuple[str, ...],
     budget_email: str,
@@ -118,7 +119,7 @@ def scaffold_bootstrap_cmd(
     ref: str,
     force: bool,
 ) -> None:
-    """Write bootstrap/main.tf (hosted zones, budget alarm, OIDC deploy role)."""
+    """Set up an events repo: bootstrap/main.tf and partyplanner.yaml."""
     from .scaffold import scaffold_bootstrap
 
     try:
@@ -140,13 +141,11 @@ def scaffold_bootstrap_cmd(
         click.echo(f"wrote {path}")
     for path in kept:
         click.echo(f"kept {path}")
-    click.echo(
-        "next: cd bootstrap && "
-        'terraform init -backend-config="bucket=$TF_STATE_BUCKET" && terraform apply'
-    )
+    backend_config = "" if state_bucket else ' -backend-config="bucket=$TF_STATE_BUCKET"'
+    click.echo(f"next: cd bootstrap && terraform init{backend_config} && terraform apply")
 
 
-@scaffold.command("occasion")
+@main.command("new")
 @click.argument("name")
 @click.option("--dir", "root", type=click.Path(path_type=Path), default=Path("."))
 @click.option("--domain", required=True, help="Site domain, e.g. bbq-2026.events.example.com.")
@@ -160,7 +159,7 @@ def scaffold_bootstrap_cmd(
 @click.option("--region", default=None, help="[default: partyplanner.yaml or us-east-1]")
 @click.option("--ref", default=None, help="partyplanner ref to pin [default: partyplanner.yaml].")
 @click.option("--force", is_flag=True, help="Regenerate over existing files (keeps occasion.yaml).")
-def scaffold_occasion_cmd(
+def new_cmd(
     name: str,
     root: Path,
     domain: str,
@@ -201,6 +200,15 @@ def scaffold_occasion_cmd(
     for path in kept:
         click.echo(f"kept {path}")
     click.echo(f"next: edit occasions/{name}/occasion.yaml, then partyplanner mint it")
+
+
+@main.group(hidden=True)
+def scaffold() -> None:
+    """Deprecated aliases: use `init` and `new`."""
+
+
+scaffold.add_command(init_cmd, "bootstrap")
+scaffold.add_command(new_cmd, "occasion")
 
 
 @main.command("export-rsvps")

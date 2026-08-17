@@ -57,6 +57,7 @@ def test_scaffolded_workflows_parse_and_wire_inputs(tmp_path):
         assert job["with"]["aws_region"] == "us-east-1"
         assert job["secrets"] == "inherit"
     assert deploy["on"]["push"]["paths"] == ["occasions/bbq-2026/**"]
+    assert "workflow_dispatch" in deploy["on"]
     assert destroy["on"] == "workflow_dispatch"
 
 
@@ -64,6 +65,7 @@ def test_scaffolded_terraform_pins_ref_and_state_key(tmp_path):
     _occasion(tmp_path, ref="v0.1.0")
     tf = (tmp_path / "occasions/bbq-2026/terraform/main.tf").read_text()
     assert "modules/occasion?ref=v0.1.0" in tf
+    assert 'bucket = "my-tf-state"' in tf
     assert 'key    = "occasions/bbq-2026/terraform.tfstate"' in tf
     assert 'zone_id = "Z0123456789EXAMPLE"' in tf
 
@@ -131,6 +133,7 @@ def test_scaffold_bootstrap_writes_root(tmp_path):
     tf = paths[0].read_text()
     assert 'zones            = ["allhallowtide.party", "events.example.com"]' in tf
     assert "repo:1512-link/events:ref:refs/heads/default" in tf
+    assert 'bucket = "my-tf-state"' in tf
     assert 'key    = "bootstrap/terraform.tfstate"' in tf
     assert load_repo_config(tmp_path) == {
         "state_bucket": "my-tf-state",
@@ -150,6 +153,9 @@ def test_scaffold_bootstrap_without_bucket_leaves_it_commented(tmp_path):
     )
     assert "state_bucket" not in load_repo_config(tmp_path)
     assert "# state_bucket:" in (tmp_path / "partyplanner.yaml").read_text()
+    tf = (tmp_path / "bootstrap" / "main.tf").read_text()
+    assert "bucket =" not in tf
+    assert '-backend-config="bucket=$TF_STATE_BUCKET"' in tf
 
 
 def test_scaffold_bootstrap_force_keeps_edited_repo_config(tmp_path):
@@ -190,6 +196,19 @@ def test_scaffold_bootstrap_rejects_bad_repo(tmp_path):
             budget_limit=10,
             github_repo="not-a-repo",
         )
+
+
+def test_scaffold_bootstrap_accepts_id_pinned_repo(tmp_path):
+    scaffold_bootstrap(
+        tmp_path,
+        zones=["events.example.com"],
+        budget_email="you@example.com",
+        budget_limit=10,
+        github_repo="1512-ninja@168232576/events@1334792952",
+        state_bucket="my-tf-state",
+    )
+    tf = (tmp_path / "bootstrap" / "main.tf").read_text()
+    assert "repo:1512-ninja@168232576/events@1334792952:ref:refs/heads/default" in tf
 
 
 def test_scaffold_bootstrap_rejects_nonpositive_budget(tmp_path):
@@ -265,7 +284,7 @@ def test_scaffold_occasion_flags_override_repo_config(tmp_path):
     _occasion(tmp_path, ref="v9")
     tf = (tmp_path / "occasions/bbq-2026/terraform/main.tf").read_text()
     assert "modules/occasion?ref=v9" in tf
-    assert 'bucket = "my-tf-state"' not in tf  # bucket comes via -backend-config, not HCL
+    assert 'bucket = "my-tf-state"' in tf
 
 
 def test_scaffold_occasion_without_state_bucket_anywhere(tmp_path):
@@ -334,3 +353,48 @@ def test_scaffold_numeric_occasion_name_yields_valid_config(tmp_path):
     )
     occasion = config.load(tmp_path / "occasions" / "2026" / "occasion.yaml")
     assert occasion.title == "2026"
+
+
+def test_cli_init_and_new_with_deprecated_scaffold_aliases(tmp_path):
+    from click.testing import CliRunner
+
+    from partyplanner.cli import main
+
+    runner = CliRunner()
+    init_args = [
+        "--dir",
+        str(tmp_path),
+        "--zone",
+        "events.example.com",
+        "--budget-email",
+        "you@example.com",
+        "--github-repo",
+        "1512-ninja/events",
+        "--state-bucket",
+        "my-tf-state",
+    ]
+    result = runner.invoke(main, ["init", *init_args])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "partyplanner.yaml").exists()
+
+    result = runner.invoke(main, ["scaffold", "bootstrap", *init_args, "--force"])
+    assert result.exit_code == 0, result.output
+
+    new_args = [
+        "bbq-2026",
+        "--dir",
+        str(tmp_path),
+        "--domain",
+        "bbq-2026.events.example.com",
+        "--zone-id",
+        "Z0123456789EXAMPLE",
+        "--role-arn",
+        "arn:aws:iam::123456789012:role/partyplanner-deploy",
+    ]
+    result = runner.invoke(main, ["new", *new_args])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "occasions/bbq-2026/occasion.yaml").exists()
+
+    result = runner.invoke(main, ["scaffold", "occasion", *new_args, "--force"])
+    assert result.exit_code == 0, result.output
+    assert "scaffold" not in runner.invoke(main, ["--help"]).output
