@@ -13,6 +13,7 @@ import datetime as dt
 import json
 import re
 import tempfile
+import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -61,15 +62,18 @@ class PreviewStore:
     def __init__(self, occasion: Occasion) -> None:
         self.links = {item["pk"].removeprefix("LINK#"): item for item in link_items(occasion)}
         self.rsvps: dict[tuple[str, str], dict] = {}
+        self._lock = threading.Lock()  # requests run in ThreadingHTTPServer threads
 
     def state(self, token: str) -> dict:
         link = self.links.get(token)
         if link is None:
             raise PreviewError("unknown link")
+        with self._lock:
+            snapshot = [(eid, dict(row)) for (eid, _), row in self.rsvps.items()]
         events: dict[str, list[dict]] = {}
         prefill = link.get("prefill_name")
         for event_id in link["rsvp_events"]:
-            rows = [dict(row) for (eid, _), row in self.rsvps.items() if eid == event_id]
+            rows = [row for eid, row in snapshot if eid == event_id]
             rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
             events[event_id] = rows
             if prefill and any(r["name"].casefold() == prefill.casefold() for r in rows):
@@ -100,11 +104,12 @@ class PreviewStore:
             raise PreviewError("bad party_size")
         if not 0 <= party_size <= MAX_PARTY:
             raise PreviewError(f"party_size must be 0-{MAX_PARTY}")
-        self.rsvps[(event_id, name.casefold())] = {
-            "name": name,
-            "response": response,
-            "party_size": party_size,
-        }
+        with self._lock:
+            self.rsvps[(event_id, name.casefold())] = {
+                "name": name,
+                "response": response,
+                "party_size": party_size,
+            }
 
 
 class PreviewHandler(SimpleHTTPRequestHandler):
