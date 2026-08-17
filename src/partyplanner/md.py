@@ -19,5 +19,9 @@ def md_html(text: str) -> Markup:
 
 
 def md_plain(text: str) -> str:
-    """Markdown stripped to plain text, for meta descriptions and the like."""
+    """Markdown stripped to unescaped plain text.
+
+    NOT safe to inject into HTML directly — only use where the consumer
+    escapes it (e.g. an autoescaped Jinja template attribute).
+    """
     return html.unescape(_TAG_RE.sub("", _md.renderInline(text)))
