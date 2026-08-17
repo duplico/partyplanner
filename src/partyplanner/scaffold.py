@@ -27,7 +27,8 @@ REPO_CONFIG = "partyplanner.yaml"
 REPO_CONFIG_KEYS = ("state_bucket", "region", "branch", "ref", "timezone")
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}\Z")
-GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
+# optionally ID-pinned (`owner@id/repo@id`), for orgs issuing pinned OIDC subs
+GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+(@\d+)?/[A-Za-z0-9_.-]+(@\d+)?\Z")
 ZONE_ID_RE = re.compile(r"^Z[A-Z0-9]{1,31}\Z")
 ROLE_ARN_RE = re.compile(r"^arn:aws:iam::\d{12}:role/[\w+=,.@/-]+\Z")
 BUCKET_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\Z")
@@ -222,6 +223,7 @@ def scaffold_bootstrap(
         budget_email=budget_email,
         budget_limit=budget_limit,
         github_repo=github_repo,
+        state_bucket=state_bucket,
         branch=branch,
         region=region,
         ref=ref,

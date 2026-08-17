@@ -1,7 +1,6 @@
 terraform {
   backend "s3" {
-    # bucket comes from the workflows' tf_state_bucket input (or
-    # `terraform init -backend-config="bucket=$TF_STATE_BUCKET"` locally)
+    bucket = "{{ state_bucket }}"
     key    = "occasions/{{ name }}/terraform.tfstate"
     region = "{{ region }}"
   }

@@ -3,6 +3,7 @@ on:
   push:
     branches: ["{{ branch }}"]
     paths: ["occasions/{{ name }}/**"]
+  workflow_dispatch:
 
 permissions:
   contents: read

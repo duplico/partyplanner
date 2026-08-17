@@ -32,14 +32,16 @@ or `bootstrap_outputs` errors before even calling terraform.
 ## Key behaviors and expected outputs
 - `init --dir R --zone Z --budget-email E --github-repo O/R2`
   writes `bootstrap/main.tf` AND `partyplanner.yaml` (state_bucket/region/branch/ref).
-  `--state-bucket` reads `$TF_STATE_BUCKET` via click envvar; with neither,
-  the file gets a commented `# state_bucket: your-tf-state-bucket` line.
+  `--state-bucket` reads `$TF_STATE_BUCKET` via click envvar; when known it is
+  also baked into the bootstrap backend block (`bucket = "..."`). With
+  neither, partyplanner.yaml gets a commented `# state_bucket: ...` line and
+  the backend block gets a comment instead of a bucket.
 - `new NAME --dir R --domain FQDN` needs only name+domain when
   partyplanner.yaml + stub terraform are in place. Zone match is longest-suffix
   (events.example.com beats example.com for a.events.example.com). Inferred
-  zone_id lands in `occasions/NAME/terraform/main.tf`; role ARN and state bucket
-  land in `.github/workflows/deploy-NAME.yml` (not main.tf — the backend bucket
-  comes from the workflow's `tf_state_bucket` input).
+  zone_id and the backend `bucket =` land in `occasions/NAME/terraform/main.tf`;
+  role ARN and state bucket also land in `.github/workflows/deploy-NAME.yml`
+  (which additionally has a `workflow_dispatch:` trigger for manual re-runs).
 - Without `--force`, rerunning errors `refusing to overwrite existing ... (--force
   to regenerate)` and exits 1. With `--force`, everything is rewritten EXCEPT an
   existing `occasions/NAME/occasion.yaml` (it holds minted ids/tokens) and an

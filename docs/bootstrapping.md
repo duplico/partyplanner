@@ -89,15 +89,22 @@ partyplanner init \
 defaults to 10 USD/month.) This also writes `partyplanner.yaml` at the repo
 root — shared defaults (state bucket from `$TF_STATE_BUCKET`, region, branch,
 ref) that later `partyplanner new` runs read so you don't re-enter them.
-Commit it. Review the generated files, then apply — the backend
-block deliberately omits the bucket name so it comes from step 1's variable:
+Commit it. With the bucket known (step 1's `$TF_STATE_BUCKET`, or
+`--state-bucket`), the generated backend blocks carry the bucket name, so
+plain `terraform init` works from here on. Review the generated files, then
+apply:
 
 ```bash
 cd bootstrap
-terraform init -backend-config="bucket=$TF_STATE_BUCKET"
+terraform init
 terraform apply
 cd ..
 ```
+
+(If the bucket wasn't set when you ran `init`, the backend block omits it —
+add `state_bucket:` to `partyplanner.yaml`, re-run
+`partyplanner init --force ...`, or fall back to
+`terraform init -backend-config="bucket=$TF_STATE_BUCKET"`.)
 
 Note the outputs: `zone_ids` and `deploy_role_arn` feed each `partyplanner new`
 run, and `name_servers` is what you delegate to next. Hosted zones cost
@@ -110,6 +117,24 @@ OIDC subject condition. Scope it down in `bootstrap/main.tf` once your
 resource-naming conventions settle. If you'd rather not use OIDC, the
 workflows also accept `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` as secrets —
 but prefer the role.
+
+### Orgs with ID-pinned OIDC subject claims
+
+Some GitHub orgs issue OIDC tokens whose subject embeds immutable numeric
+IDs — `repo:ORG@1234/REPO@5678:ref:...` instead of `repo:ORG/REPO:ref:...` —
+which makes the trust policy survive org/repo renames but means the plain
+spelling never matches (`Not authorized to perform
+sts:AssumeRoleWithWebIdentity` even though everything looks right). If your
+first deploy fails that way, read the actual `sub` from a token (a one-off
+`workflow_dispatch` job with `id-token: write` that decodes the JWT payload
+from `$ACTIONS_ID_TOKEN_REQUEST_URL`, or CloudTrail's failed
+`AssumeRoleWithWebIdentity` event) and pass the pinned form to `init`:
+
+```bash
+partyplanner init --github-repo 'ORG@1234/REPO@5678' ...other flags... --force
+```
+
+Then `terraform apply` in `bootstrap/` to update the role's trust policy.
 
 ## 3. Delegate DNS
 

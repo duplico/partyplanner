@@ -90,12 +90,18 @@ def sync_links(config_path: Path, table_name: str) -> None:
 @click.option("--zone", "zones", multiple=True, required=True, help="Domain to host (repeatable).")
 @click.option("--budget-email", required=True, help="Email for budget alerts.")
 @click.option("--budget-limit", default=10, show_default=True, help="Monthly budget in USD.")
-@click.option("--github-repo", required=True, help="This events repo, as ORG/REPO (for OIDC).")
+@click.option(
+    "--github-repo",
+    required=True,
+    help="This events repo, as ORG/REPO (for OIDC); ORG@ID/REPO@ID if your org"
+    " issues ID-pinned subject claims.",
+)
 @click.option(
     "--state-bucket",
     envvar="TF_STATE_BUCKET",
     default=None,
-    help="Terraform state bucket, recorded in partyplanner.yaml (default: $TF_STATE_BUCKET).",
+    help="Terraform state bucket, recorded in partyplanner.yaml and the"
+    " generated backend blocks (default: $TF_STATE_BUCKET).",
 )
 @click.option("--branch", default="default", show_default=True, help="Deployable branch.")
 @click.option("--region", default="us-east-1", show_default=True)
