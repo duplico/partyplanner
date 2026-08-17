@@ -56,7 +56,7 @@ def _where_url(event: Event) -> str | None:
     if event.where is None:
         return None
     return event.where_url or (
-        f"https://www.google.com/maps/search/?api=1&query={quote(event.where)}"
+        f"https://www.google.com/maps/search/?api=1&query={quote(event.where, safe='')}"
     )
 
 
