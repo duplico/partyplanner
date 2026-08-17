@@ -13,13 +13,13 @@ import json
 import os
 import re
 import subprocess
-import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, PackageLoader
 from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 
 from .config import ConfigError
 
@@ -65,12 +65,6 @@ def _check_bucket(value: str) -> str:
     return value
 
 
-def _umask() -> int:
-    mask = os.umask(0)
-    os.umask(mask)
-    return mask
-
-
 def _write_all(
     files: list[tuple[Path, str]],
     *,
@@ -107,11 +101,11 @@ def _write_all(
         if path in kept:
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+        tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
         try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
-            os.chmod(tmp, 0o666 & ~_umask())
             os.replace(tmp, path)
         except OSError as e:
             with contextlib.suppress(OSError):
@@ -126,7 +120,10 @@ def load_repo_config(root: Path) -> dict[str, str]:
     path = root / REPO_CONFIG
     if not path.exists():
         return {}
-    data = YAML(typ="safe").load(path) or {}
+    try:
+        data = YAML(typ="safe").load(path) or {}
+    except YAMLError as e:
+        raise ConfigError(f"{path}: invalid YAML: {e}") from e
     if not isinstance(data, dict):
         raise ConfigError(f"{path} must be a YAML mapping")
     out: dict[str, str] = {}
@@ -180,7 +177,7 @@ def zone_for_domain(zone_ids: dict[str, str], domain: str) -> str:
 
 def _repo_config_content(*, state_bucket: str | None, region: str, branch: str, ref: str) -> str:
     bucket_line = (
-        f"state_bucket: {state_bucket}\n"
+        f'state_bucket: "{state_bucket}"\n'
         if state_bucket
         else "# state_bucket: your-tf-state-bucket\n"
     )
@@ -189,9 +186,9 @@ def _repo_config_content(*, state_bucket: str | None, region: str, branch: str, 
         "# `partyplanner scaffold occasion` for shared defaults, so occasions only\n"
         "# need a name and a --domain. Safe to edit.\n"
         + bucket_line
-        + f"region: {region}\n"
-        + f"branch: {branch}\n"
-        + f"ref: {ref}\n"
+        + f'region: "{region}"\n'
+        + f'branch: "{branch}"\n'
+        + f'ref: "{ref}"\n'
     )
 
 

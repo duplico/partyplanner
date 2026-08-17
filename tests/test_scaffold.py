@@ -223,6 +223,27 @@ def _write_repo_config(tmp_path, **extra):
     (tmp_path / "partyplanner.yaml").write_text("".join(f"{k}: {v}\n" for k, v in lines.items()))
 
 
+def test_load_repo_config_rejects_invalid_yaml(tmp_path):
+    (tmp_path / "partyplanner.yaml").write_text("state_bucket: [unclosed\n")
+    with pytest.raises(ConfigError, match="invalid YAML"):
+        load_repo_config(tmp_path)
+
+
+def test_repo_config_roundtrips_numeric_looking_values(tmp_path):
+    scaffold_bootstrap(
+        tmp_path,
+        zones=["events.example.com"],
+        budget_email="you@example.com",
+        budget_limit=10,
+        github_repo="1512-ninja/events",
+        state_bucket="123456",
+        ref="2026.1",
+    )
+    config = load_repo_config(tmp_path)
+    assert config["state_bucket"] == "123456"
+    assert config["ref"] == "2026.1"
+
+
 def test_scaffold_occasion_reads_repo_config(tmp_path):
     _write_repo_config(tmp_path)
     scaffold_occasion(
