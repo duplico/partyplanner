@@ -169,7 +169,8 @@ partyplanner scaffold occasion bbq-2026 --domain bbq-2026.events.example.com --f
 ```
 
 `--force` regenerates the Terraform roots and workflows but always keeps an
-existing `occasion.yaml` (it holds your edits, minted ids, and live tokens).
+existing `occasion.yaml` (it holds your edits, minted ids, and live tokens)
+and an existing `partyplanner.yaml` (it's yours to edit once written).
 Review the diff with git before committing. If your events repo predates
 `partyplanner.yaml`, create it by hand:
 

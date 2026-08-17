@@ -152,6 +152,35 @@ def test_scaffold_bootstrap_without_bucket_leaves_it_commented(tmp_path):
     assert "# state_bucket:" in (tmp_path / "partyplanner.yaml").read_text()
 
 
+def test_scaffold_bootstrap_force_keeps_edited_repo_config(tmp_path):
+    def _bootstrap(**kwargs):
+        return scaffold_bootstrap(
+            tmp_path,
+            zones=["events.example.com"],
+            budget_email="you@example.com",
+            budget_limit=10,
+            github_repo="1512-ninja/events",
+            state_bucket="my-tf-state",
+            **kwargs,
+        )
+
+    _bootstrap()
+    config = tmp_path / "partyplanner.yaml"
+    config.write_text("state_bucket: my-tf-state\nref: v0.2.0\n")
+    written, kept = _bootstrap(force=True)
+    assert kept == [config]
+    assert config.read_text() == "state_bucket: my-tf-state\nref: v0.2.0\n"
+    assert written == [tmp_path / "bootstrap" / "main.tf"]
+
+
+def test_force_regenerated_files_keep_umask_permissions(tmp_path):
+    _occasion(tmp_path)
+    tf = tmp_path / "occasions/bbq-2026/terraform/main.tf"
+    before = tf.stat().st_mode & 0o777
+    _occasion(tmp_path, force=True)
+    assert tf.stat().st_mode & 0o777 == before
+
+
 def test_scaffold_bootstrap_rejects_bad_repo(tmp_path):
     with pytest.raises(ConfigError, match="github repo"):
         scaffold_bootstrap(

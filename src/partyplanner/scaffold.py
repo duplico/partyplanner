@@ -65,6 +65,12 @@ def _check_bucket(value: str) -> str:
     return value
 
 
+def _umask() -> int:
+    mask = os.umask(0)
+    os.umask(mask)
+    return mask
+
+
 def _write_all(
     files: list[tuple[Path, str]],
     *,
@@ -105,6 +111,7 @@ def _write_all(
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
+            os.chmod(tmp, 0o666 & ~_umask())
             os.replace(tmp, path)
         except OSError as e:
             with contextlib.suppress(OSError):
@@ -231,6 +238,7 @@ def scaffold_bootstrap(
             (root / REPO_CONFIG, repo_config),
         ],
         force=force,
+        preserve=frozenset({root / REPO_CONFIG}),
     )
 
 
