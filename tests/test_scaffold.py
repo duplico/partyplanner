@@ -334,3 +334,48 @@ def test_scaffold_numeric_occasion_name_yields_valid_config(tmp_path):
     )
     occasion = config.load(tmp_path / "occasions" / "2026" / "occasion.yaml")
     assert occasion.title == "2026"
+
+
+def test_cli_init_and_new_with_deprecated_scaffold_aliases(tmp_path):
+    from click.testing import CliRunner
+
+    from partyplanner.cli import main
+
+    runner = CliRunner()
+    init_args = [
+        "--dir",
+        str(tmp_path),
+        "--zone",
+        "events.example.com",
+        "--budget-email",
+        "you@example.com",
+        "--github-repo",
+        "1512-ninja/events",
+        "--state-bucket",
+        "my-tf-state",
+    ]
+    result = runner.invoke(main, ["init", *init_args])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "partyplanner.yaml").exists()
+
+    result = runner.invoke(main, ["scaffold", "bootstrap", *init_args, "--force"])
+    assert result.exit_code == 0, result.output
+
+    new_args = [
+        "bbq-2026",
+        "--dir",
+        str(tmp_path),
+        "--domain",
+        "bbq-2026.events.example.com",
+        "--zone-id",
+        "Z0123456789EXAMPLE",
+        "--role-arn",
+        "arn:aws:iam::123456789012:role/partyplanner-deploy",
+    ]
+    result = runner.invoke(main, ["new", *new_args])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "occasions/bbq-2026/occasion.yaml").exists()
+
+    result = runner.invoke(main, ["scaffold", "occasion", *new_args, "--force"])
+    assert result.exit_code == 0, result.output
+    assert "scaffold" not in runner.invoke(main, ["--help"]).output

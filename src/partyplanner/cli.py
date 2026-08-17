@@ -85,12 +85,7 @@ def sync_links(config_path: Path, table_name: str) -> None:
     click.echo(f"synced {active} links, removed {stale} stale tokens")
 
 
-@main.group()
-def scaffold() -> None:
-    """Generate consumer (events) repo skeleton files."""
-
-
-@scaffold.command("bootstrap")
+@main.command("init")
 @click.option("--dir", "root", type=click.Path(path_type=Path), default=Path("."))
 @click.option("--zone", "zones", multiple=True, required=True, help="Domain to host (repeatable).")
 @click.option("--budget-email", required=True, help="Email for budget alerts.")
@@ -106,7 +101,7 @@ def scaffold() -> None:
 @click.option("--region", default="us-east-1", show_default=True)
 @click.option("--ref", default="default", show_default=True, help="partyplanner ref to pin.")
 @click.option("--force", is_flag=True, help="Regenerate over existing files.")
-def scaffold_bootstrap_cmd(
+def init_cmd(
     root: Path,
     zones: tuple[str, ...],
     budget_email: str,
@@ -118,7 +113,7 @@ def scaffold_bootstrap_cmd(
     ref: str,
     force: bool,
 ) -> None:
-    """Write bootstrap/main.tf (hosted zones, budget alarm, OIDC deploy role)."""
+    """Set up an events repo: bootstrap/main.tf and partyplanner.yaml."""
     from .scaffold import scaffold_bootstrap
 
     try:
@@ -146,7 +141,7 @@ def scaffold_bootstrap_cmd(
     )
 
 
-@scaffold.command("occasion")
+@main.command("new")
 @click.argument("name")
 @click.option("--dir", "root", type=click.Path(path_type=Path), default=Path("."))
 @click.option("--domain", required=True, help="Site domain, e.g. bbq-2026.events.example.com.")
@@ -160,7 +155,7 @@ def scaffold_bootstrap_cmd(
 @click.option("--region", default=None, help="[default: partyplanner.yaml or us-east-1]")
 @click.option("--ref", default=None, help="partyplanner ref to pin [default: partyplanner.yaml].")
 @click.option("--force", is_flag=True, help="Regenerate over existing files (keeps occasion.yaml).")
-def scaffold_occasion_cmd(
+def new_cmd(
     name: str,
     root: Path,
     domain: str,
@@ -201,6 +196,15 @@ def scaffold_occasion_cmd(
     for path in kept:
         click.echo(f"kept {path}")
     click.echo(f"next: edit occasions/{name}/occasion.yaml, then partyplanner mint it")
+
+
+@main.group(hidden=True)
+def scaffold() -> None:
+    """Deprecated aliases: use `init` and `new`."""
+
+
+scaffold.add_command(init_cmd, "bootstrap")
+scaffold.add_command(new_cmd, "occasion")
 
 
 @main.command("export-rsvps")
