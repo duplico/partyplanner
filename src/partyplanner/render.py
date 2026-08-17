@@ -84,6 +84,12 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
 
     occasion_photo = asset(occasion.photo)
 
+    favicon = "/assets/favicon.svg"
+    if occasion.favicon:
+        src = _contained(config_dir, occasion.favicon)
+        favicon = f"/favicon{src.suffix.lower()}"
+        shutil.copyfile(src, site / favicon.lstrip("/"))
+
     events = {}
     ics_texts = {}
     for event in occasion.events:
@@ -109,6 +115,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
     base_ctx = {
         "occasion": occasion,
         "occasion_photo": occasion_photo,
+        "favicon": favicon,
         "theme_css": _theme_css(occasion),
         "og_image": f"https://{occasion.domain}{occasion_photo}" if occasion_photo else None,
         "og_description": ((occasion.blurb or "").strip() or "You're invited.").splitlines()[0],

@@ -132,6 +132,7 @@ class Occasion(BaseModel):
     domain: str
     timezone: str
     photo: str | None = None
+    favicon: str | None = None
     blurb: str | None = None
     theme: Theme | None = None
     landing: Landing | None = None
