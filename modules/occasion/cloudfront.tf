@@ -64,7 +64,14 @@ resource "aws_cloudfront_function" "index_rewrite" {
   name    = "${local.name}-index-rewrite"
   runtime = "cloudfront-js-2.0"
   publish = true
-  code    = <<-EOT
+
+  # The name embeds the domain, so a domain change replaces this function;
+  # without create-before-destroy the delete runs while the distribution
+  # still references the old function and CloudFront returns FunctionInUse.
+  lifecycle {
+    create_before_destroy = true
+  }
+  code = <<-EOT
     function handler(event) {
       var request = event.request;
       var uri = request.uri;

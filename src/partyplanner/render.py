@@ -8,7 +8,7 @@ from defusedcsv import csv
 from jinja2 import Environment, PackageLoader
 
 from .config import ConfigError, Occasion, require_complete
-from .ics import event_ics
+from .ics import calendar_links, event_ics
 
 env = Environment(
     loader=PackageLoader("partyplanner", "templates"),
@@ -35,6 +35,19 @@ def _fmt_when(start: dt.datetime, end: dt.datetime | None, occasion: Occasion) -
         else:
             text += f" – {end.strftime('%A')} {clock(end)}"
     return f"{text} {start.strftime('%Z')}"
+
+
+def _theme_css(occasion: Occasion) -> str | None:
+    if occasion.theme is None:
+        return None
+    lines = [
+        f"  --{name}: {value};"
+        for name, value in occasion.theme.model_dump().items()
+        if value is not None
+    ]
+    if not lines:
+        return None
+    return ":root {\n" + "\n".join(lines) + "\n}"
 
 
 def _contained(base: Path, rel: str) -> Path:
@@ -85,7 +98,9 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
             "where": event.where,
             "blurb": event.blurb,
             "photo": asset(event.photo),
+            "accent": event.accent,
             "rsvp_open": event.rsvp == "open",
+            "calendar_links": calendar_links(occasion, event) if event.when is not None else [],
             # Relative to the /i/<token>/ page, so calendar files stay behind
             # the capability URL instead of a guessable site-wide path.
             "ics": f"{event_id}.ics" if event.when is not None else None,
@@ -94,6 +109,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
     base_ctx = {
         "occasion": occasion,
         "occasion_photo": occasion_photo,
+        "theme_css": _theme_css(occasion),
         "og_image": f"https://{occasion.domain}{occasion_photo}" if occasion_photo else None,
         "og_description": ((occasion.blurb or "").strip() or "You're invited.").splitlines()[0],
     }

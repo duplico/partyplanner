@@ -228,3 +228,28 @@ def test_require_complete_fails_without_tokens(tmp_path: Path):
     occasion = config.load(path)
     with pytest.raises(ConfigError, match="partyplanner mint"):
         config.require_complete(occasion, path)
+
+
+@pytest.mark.parametrize("bad_color", ["red", "#12345", "7a3ff2", "#xyzxyz", "#7a3ff2;}"])
+def test_bad_theme_color_rejected(bad_color):
+    with pytest.raises(ConfigError, match="hex color"):
+        config.parse(_minimal(theme={"accent": bad_color}))
+
+
+def test_bad_event_accent_rejected():
+    events = [{"id": "a", "title": "A", "when": "2026-06-20 15:00", "accent": "orange"}]
+    with pytest.raises(ConfigError, match="hex color"):
+        config.parse(_minimal(events=events))
+
+
+def test_theme_and_accent_accepted():
+    events = [{"id": "a", "title": "A", "when": "2026-06-20 15:00", "accent": "#3fa7f2"}]
+    occasion = config.parse(_minimal(theme={"accent": "#d1550f", "bg": "#fff"}, events=events))
+    assert occasion.theme is not None
+    assert occasion.theme.accent == "#d1550f"
+    assert occasion.events[0].accent == "#3fa7f2"
+
+
+def test_unknown_theme_key_rejected():
+    with pytest.raises(ConfigError):
+        config.parse(_minimal(theme={"font": "Comic Sans"}))

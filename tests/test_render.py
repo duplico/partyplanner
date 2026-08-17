@@ -188,3 +188,52 @@ def test_render_allhallowtide_scopes(tmp_path: Path):
     assert not (site / "i" / "fixtureaaronfull2222" / "stream.ics").exists()
     # pages reference the calendar relative to the token directory
     assert 'href="party.ics"' in full
+
+
+def test_render_theme_and_accent(tmp_path: Path):
+    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    render(occasion, FIXTURES / "allhallowtide", tmp_path)
+    site = tmp_path / "site"
+
+    full = (site / "i" / "fixtureaaronfull2222" / "index.html").read_text()
+    assert "--accent: #d1550f;" in full
+    assert "--bg: #f7f2ea;" in full
+    assert 'style="--accent: #3fa7f2"' in full  # crawl's per-event accent
+
+    # landing page gets the theme too
+    assert "--accent: #d1550f;" in (site / "index.html").read_text()
+
+    # no theme -> no inline style block
+    bbq_out = tmp_path / "bbq"
+    bbq = config.load(FIXTURES / "bbq" / "occasion.yaml")
+    render(bbq, FIXTURES / "bbq", bbq_out)
+    page = (bbq_out / "site" / "i" / "fixturebbqgroupchat2" / "index.html").read_text()
+    assert ":root" not in page
+
+
+def test_render_end_time_range(tmp_path: Path):
+    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    render(occasion, FIXTURES / "allhallowtide", tmp_path)
+    full = (tmp_path / "site" / "i" / "fixtureaaronfull2222" / "index.html").read_text()
+    # candy ends the same day; crawl crosses midnight
+    assert "Saturday, October 31, 2026 · 5:00 PM–8:00 PM CDT" in full
+    assert "Friday, October 30, 2026 · 9:00 PM – Saturday 1:00 AM CDT" in full
+
+
+def test_render_rsvp_form_labels(tmp_path: Path):
+    occasion = config.load(FIXTURES / "bbq" / "occasion.yaml")
+    render(occasion, FIXTURES / "bbq", tmp_path)
+    page = (tmp_path / "site" / "i" / "fixturebbqgroupchat2" / "index.html").read_text()
+    assert 'placeholder="Your name"' in page
+    assert "Your first name" not in page
+    assert "guests</label>" in page
+
+
+def test_render_calendar_links(tmp_path: Path):
+    occasion = config.load(FIXTURES / "bbq" / "occasion.yaml")
+    render(occasion, FIXTURES / "bbq", tmp_path)
+    page = (tmp_path / "site" / "i" / "fixturebbqgroupchat2" / "index.html").read_text()
+    assert "https://calendar.google.com/calendar/render?action=TEMPLATE" in page
+    assert "https://outlook.live.com/calendar/0/deeplink/compose?" in page
+    assert "https://calendar.yahoo.com/?" in page
+    assert 'href="bbq.ics" download' in page

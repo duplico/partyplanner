@@ -4,6 +4,12 @@ title: Allhallowtide 2026
 domain: 2026.allhallowtide.example.com
 timezone: America/Chicago
 photo: ./assets/hero.svg
+theme:
+  accent: "#d1550f"
+  bg: "#f7f2ea"
+  ink: "#2a2018"
+  muted: "#7a6c5c"
+  card: "#fffaf3"
 blurb: |
   Fifteenth year at the house. Thousands of trick-or-treaters. You know the drill.
 landing:
@@ -18,11 +24,14 @@ events:
   - id: crawl
     title: Sci-Fi Bar Crawl
     when: 2026-10-30 21:00
+    end: 2026-10-31 01:00
     where: Downtown, first stop TBA
     blurb: Costumes required. Warp speed optional.
+    accent: "#3fa7f2"
   - id: candy
     title: Candy Crew
     when: 2026-10-31 17:00
+    end: 2026-10-31 20:00
     where: 123 Example Ave
     blurb: |
       Not a full party — we need hands. Candy management and crowd control
