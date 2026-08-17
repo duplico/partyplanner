@@ -61,8 +61,14 @@ def render(config_path: Path, out: Path) -> None:
 @main.command()
 @click.argument("config_path", type=click.Path(exists=True, path_type=Path))
 @click.option("--port", default=8000, show_default=True, help="Local port (0 picks a free one).")
+@click.option(
+    "--host",
+    default="127.0.0.1",
+    show_default=True,
+    help="Bind address; 0.0.0.0 exposes the preview beyond loopback (e.g. WSL2 to Windows).",
+)
 @click.option("--open", "open_browser", is_flag=True, help="Open the landing page in a browser.")
-def preview(config_path: Path, port: int, open_browser: bool) -> None:
+def preview(config_path: Path, port: int, host: str, open_browser: bool) -> None:
     """Render and serve the site locally, with an in-memory RSVP API.
 
     Prints a local URL for the landing page and each invitation link so every
@@ -73,7 +79,7 @@ def preview(config_path: Path, port: int, open_browser: bool) -> None:
 
     occasion = _load(config_path)
     try:
-        run_preview(occasion, config_path.parent, port, open_browser, echo=click.echo)
+        run_preview(occasion, config_path.parent, port, open_browser, echo=click.echo, host=host)
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
 

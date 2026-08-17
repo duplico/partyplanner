@@ -107,6 +107,22 @@ def test_preview_urls_lists_landing_and_every_link():
     assert urls[2] == ("link #2 (scope: b)", f"http://127.0.0.1:1234/i/{PARTY_TOKEN}/")
 
 
+def test_server_binds_requested_host(tmp_path: Path):
+    occasion = _occasion()
+    render(occasion, tmp_path, tmp_path / "out")
+    server = make_server(occasion, tmp_path / "out" / "site", port=0, host="0.0.0.0")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        assert server.server_address[0] == "0.0.0.0"
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        assert urllib.request.urlopen(f"{base}/").status == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_server_serves_site_and_api_end_to_end(tmp_path: Path):
     occasion = _occasion()
     render(occasion, tmp_path, tmp_path / "out")

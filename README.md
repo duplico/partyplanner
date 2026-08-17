@@ -86,7 +86,9 @@ minted.
 `preview` needs no mint and no AWS: unminted events/links get preview-only
 ids/tokens (the file is untouched), every invitation link's view gets its own
 local URL, and the RSVP forms work against an in-memory stand-in for the API
-that is discarded when the server stops.
+that is discarded when the server stops. It binds loopback only; if you need
+to reach it from outside (e.g. a Windows browser when WSL2 localhost
+forwarding misbehaves), pass `--host 0.0.0.0` and browse to the machine's IP.
 
 ## Architecture
 

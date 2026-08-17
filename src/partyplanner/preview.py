@@ -162,13 +162,15 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             self._json(400, {"error": str(e)})
 
 
-def make_server(occasion: Occasion, site_dir: Path, port: int) -> ThreadingHTTPServer:
+def make_server(
+    occasion: Occasion, site_dir: Path, port: int, host: str = "127.0.0.1"
+) -> ThreadingHTTPServer:
     handler = type(
         "BoundPreviewHandler",
         (PreviewHandler,),
         {"store": PreviewStore(occasion)},
     )
-    return ThreadingHTTPServer(("127.0.0.1", port), partial(handler, directory=str(site_dir)))
+    return ThreadingHTTPServer((host, port), partial(handler, directory=str(site_dir)))
 
 
 def preview_urls(occasion: Occasion, base: str) -> list[tuple[str, str]]:
@@ -187,6 +189,7 @@ def run_preview(
     port: int,
     open_browser: bool,
     echo=print,
+    host: str = "127.0.0.1",
 ) -> None:
     occasion, notes = completed(occasion)
     for note in notes:
@@ -195,10 +198,13 @@ def run_preview(
         out_dir = Path(tmp)
         render(occasion, config_dir, out_dir)
         try:
-            server = make_server(occasion, out_dir / "site", port)
+            server = make_server(occasion, out_dir / "site", port, host)
         except OSError as e:
-            raise ConfigError(f"cannot serve on port {port}: {e}") from e
-        base = f"http://127.0.0.1:{server.server_address[1]}"
+            raise ConfigError(f"cannot serve on {host} port {port}: {e}") from e
+        display_host = "127.0.0.1" if host == "0.0.0.0" else host
+        base = f"http://{display_host}:{server.server_address[1]}"
+        if host != "127.0.0.1":
+            echo(f"listening on {host} — reachable from other machines on the network")
         rendered_at = dt.datetime.now().strftime("%H:%M:%S")
         echo(f"previewing {occasion.title!r} (rendered {rendered_at}; Ctrl+C to stop)")
         for label, url in preview_urls(occasion, base):
