@@ -6,14 +6,19 @@
   {% if occasion.blurb %}<p class="blurb">{{ occasion.blurb }}</p>{% endif %}
 </header>
 {% for event in events %}
-<section class="event" id="{{ event.id }}">
+<section class="event" id="{{ event.id }}"{% if event.accent %} style="--accent: {{ event.accent }}"{% endif %}>
   {% if event.photo %}<img class="event-photo" src="{{ event.photo }}" alt="">{% endif %}
   <h2>{{ event.title }}</h2>
   {% if event.when %}
-  <p class="when">
-    {{ event.when }}
-    {% if event.ics %} · <a href="{{ event.ics }}" download>add to calendar</a>{% endif %}
+  <p class="when">{{ event.when }}</p>
+  {% if event.ics %}
+  <p class="cal-links">Add to calendar:
+    {% for cal in event.calendar_links %}
+    <a href="{{ cal.url }}" target="_blank" rel="noopener noreferrer">{{ cal.label }}</a> ·
+    {% endfor %}
+    <a href="{{ event.ics }}" download>.ics file</a>
   </p>
+  {% endif %}
   {% endif %}
   {% if event.where %}<p class="where">{{ event.where }}</p>{% endif %}
   {% if event.blurb %}<p class="event-blurb">{{ event.blurb }}</p>{% endif %}
@@ -22,13 +27,13 @@
     <h3>Who's coming <span class="counts" data-counts="{{ event.id }}"></span></h3>
     <ul class="rsvp-list" data-rsvps="{{ event.id }}"><li class="muted">Loading…</li></ul>
     <form class="rsvp-form" data-form="{{ event.id }}">
-      <input type="text" name="name" placeholder="Your first name" aria-label="Your first name" maxlength="40" required>
+      <input type="text" name="name" placeholder="Your name" aria-label="Your name" maxlength="40" required>
       <select name="response" aria-label="Response">
         <option value="yes">Yes</option>
         <option value="maybe">Maybe</option>
         <option value="no">No</option>
       </select>
-      <label class="plus">+<input type="number" name="party_size" value="0" min="0" max="10" aria-label="Additional guests"></label>
+      <label class="plus">+<input type="number" name="party_size" value="0" min="0" max="10" aria-label="Additional guests"> guests</label>
       <button type="submit">RSVP</button>
     </form>
     <p class="form-status" data-status="{{ event.id }}" role="status" aria-live="polite"></p>

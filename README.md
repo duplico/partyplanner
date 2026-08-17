@@ -22,7 +22,8 @@ photo, blurb, time, place, link in the group chat, done."
 - RSVPs (name, yes/maybe/no, +N guests) are visible to everyone who can see the
   page — seeing who's coming drives attendance, and it's also how hosts read
   the list.
-- Every dated event gets an **ICS file** ("add to calendar"), and pages carry
+- Every dated event gets **add-to-calendar links** (Google, Outlook, Yahoo, and
+  an ICS file for everything else), and pages carry
   OpenGraph tags so the link unfurl in Signal/Discord/iMessage looks like an
   invitation, not a bare URL.
 
@@ -58,8 +59,8 @@ group chat link, forward freely	https://bbq-2026.events.example.com/i/k7f3q2vmxw
 ```
 
 See `fixtures/allhallowtide/` for the maximal example: six events, scoped
-links, a landing-page stream embed, per-occasion CSS overrides, and a revoked
-token.
+links, a landing-page stream embed, theme colors and per-event accents,
+optional end times, per-occasion CSS overrides, and a revoked token.
 
 ## CLI
 

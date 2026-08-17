@@ -4,11 +4,20 @@ title: "{{ title }}"
 domain: {{ domain }}
 timezone: {{ timezone }}
 # photo: ./assets/photo.jpg
+# theme:            # optional colors (hex); any subset works
+#   accent: "#7a3ff2"
+#   bg: "#faf8f5"
+#   ink: "#22201d"
+#   muted: "#77716a"
+#   card: "#ffffff"
 blurb: |
   Edit me: a sentence or two shown on every page (and in link unfurls).
 events:
   - title: "{{ title }}"
     when: {{ when }}
+    # end: {{ when[:11] }}18:00  # optional ending time
+    # photo: ./assets/event.jpg
+    # accent: "#3fa7f2"        # optional per-event accent color
     where: EDIT ME
 links:
   - note: group chat link, forward freely

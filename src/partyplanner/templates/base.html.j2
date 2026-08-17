@@ -15,6 +15,11 @@
 <meta name="twitter:card" content="summary_large_image">
 {% endif %}
 <link rel="stylesheet" href="/assets/style.css">
+{% if theme_css %}
+<style>
+{{ theme_css }}
+</style>
+{% endif %}
 <link rel="stylesheet" href="/assets/custom.css">
 </head>
 <body>

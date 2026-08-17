@@ -31,6 +31,25 @@ class Landing(BaseModel):
 
 
 EVENT_ID_RE = re.compile(r"^[a-z0-9-]{1,64}\Z")
+COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\Z")
+
+
+def _check_color(v: str | None) -> str | None:
+    if v is not None and not COLOR_RE.match(v):
+        raise ValueError(f"color {v!r} must be a hex color like #7a3ff2")
+    return v
+
+
+class Theme(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    accent: str | None = None
+    bg: str | None = None
+    ink: str | None = None
+    muted: str | None = None
+    card: str | None = None
+
+    _colors = field_validator("accent", "bg", "ink", "muted", "card")(_check_color)
 
 
 class Event(BaseModel):
@@ -43,7 +62,10 @@ class Event(BaseModel):
     where: str | None = None
     blurb: str | None = None
     photo: str | None = None
+    accent: str | None = None
     rsvp: Literal["open", "none"] = "open"
+
+    _accent = field_validator("accent")(_check_color)
 
     @field_validator("id")
     @classmethod
@@ -111,6 +133,7 @@ class Occasion(BaseModel):
     timezone: str
     photo: str | None = None
     blurb: str | None = None
+    theme: Theme | None = None
     landing: Landing | None = None
     events: list[Event] = Field(min_length=1)
     scopes: dict[str, list[str]] = Field(default_factory=dict)
