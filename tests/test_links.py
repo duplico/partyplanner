@@ -89,6 +89,24 @@ def test_add_link_unknown_scope_rejected(tmp_path: Path):
     assert not (tmp_path / LINKS_FILENAME).exists()
 
 
+def test_add_link_empty_scope_rejected(tmp_path: Path):
+    src = _config(tmp_path)
+    with pytest.raises(ConfigError, match="empty"):
+        config.add_link(src, [])
+    assert not (tmp_path / LINKS_FILENAME).exists()
+
+
+def test_add_and_revoke_tolerate_null_sections(tmp_path: Path):
+    src = _config(tmp_path)
+    (tmp_path / LINKS_FILENAME).write_text("links:\nrevoked:\n")
+    link = config.add_link(src, "all")
+    assert link.token is not None
+    config.revoke_link(src, link.token)
+    occasion = config.load(src)
+    assert occasion.links == []
+    assert occasion.revoked == [link.token]
+
+
 def test_revoke_link_moves_token_to_revoked(tmp_path: Path):
     src = _config(tmp_path)
     link = config.add_link(src, "all")

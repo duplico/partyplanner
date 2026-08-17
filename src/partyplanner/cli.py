@@ -119,6 +119,10 @@ def link_add(config_path: Path, scope: str, note: str | None, prefill_name: str 
     scope_value: str | list[str] = scope
     if scope != "all" and scope not in occasion.scopes:
         scope_value = [s.strip() for s in scope.split(",") if s.strip()]
+        if not scope_value:
+            raise click.ClickException(
+                "--scope must be `all`, a named scope, or comma-separated event ids"
+            )
     try:
         new = config_mod.add_link(config_path, scope_value, note=note, prefill_name=prefill_name)
     except ConfigError as e:

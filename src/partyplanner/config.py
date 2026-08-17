@@ -290,6 +290,8 @@ def add_link(
     prefill_name: str | None = None,
 ) -> Link:
     """Mint a new link into the links file next to the config. Returns the link."""
+    if isinstance(scope, list) and not scope:
+        raise ConfigError("scope must not be empty")
     occasion = load(config_path)
     link = Link(token=mint_token(), scope=scope, prefill_name=prefill_name, note=note)
     try:
@@ -308,7 +310,9 @@ def add_link(
         entry["prefill_name"] = link.prefill_name
     if link.note:
         entry["note"] = link.note
-    data.setdefault("links", CommentedSeq()).append(entry)
+    if not data.get("links"):
+        data["links"] = CommentedSeq()
+    data["links"].append(entry)
     with links_path.open("w") as f:
         yaml.dump(data, f)
     load(config_path)  # re-validate the merged result
@@ -335,7 +339,9 @@ def revoke_link(config_path: Path, token: str) -> None:
             )
         raise ConfigError(f"unknown token {token!r}")
     del links[index]
-    data.setdefault("revoked", CommentedSeq()).append(token)
+    if not data.get("revoked"):
+        data["revoked"] = CommentedSeq()
+    data["revoked"].append(token)
     with links_path.open("w") as f:
         yaml.dump(data, f)
     load(config_path)  # re-validate the merged result
