@@ -202,8 +202,10 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             path = path / "index.html"
         if not path.is_file():
             return False
-        content = path.read_bytes()
+        # Version before content: a racing reload then costs at most one
+        # extra refresh, never a stale page with a too-new baseline.
         script = (RELOAD_SCRIPT % self.reload_state.version).encode()
+        content = path.read_bytes()
         if b"</body>" in content:
             content = content.replace(b"</body>", script + b"</body>", 1)
         else:
