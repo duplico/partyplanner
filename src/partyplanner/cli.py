@@ -74,12 +74,13 @@ def preview(config_path: Path, port: int, host: str, open_browser: bool) -> None
     Prints a local URL for the landing page and each invitation link so every
     view can be checked. Unminted events/links get preview-only ids/tokens
     (the config file is never modified). RSVPs work but live in memory only.
+    Edits to the config or its assets re-render and refresh the browser.
     """
     from .preview import run_preview
 
     occasion = _load(config_path)
     try:
-        run_preview(occasion, config_path.parent, port, open_browser, echo=click.echo, host=host)
+        run_preview(occasion, config_path, port, open_browser, echo=click.echo, host=host)
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
 
