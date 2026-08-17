@@ -89,6 +89,13 @@ def test_add_link_unknown_scope_rejected(tmp_path: Path):
     assert not (tmp_path / LINKS_FILENAME).exists()
 
 
+def test_add_link_invalid_prefill_rejected(tmp_path: Path):
+    src = _config(tmp_path)
+    with pytest.raises(ConfigError, match="prefill_name"):
+        config.add_link(src, "all", prefill_name="x" * 41)
+    assert not (tmp_path / LINKS_FILENAME).exists()
+
+
 def test_add_link_empty_scope_rejected(tmp_path: Path):
     src = _config(tmp_path)
     with pytest.raises(ConfigError, match="empty"):

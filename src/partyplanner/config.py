@@ -293,8 +293,8 @@ def add_link(
     if isinstance(scope, list) and not scope:
         raise ConfigError("scope must not be empty")
     occasion = load(config_path)
-    link = Link(token=mint_token(), scope=scope, prefill_name=prefill_name, note=note)
     try:
+        link = Link(token=mint_token(), scope=scope, prefill_name=prefill_name, note=note)
         occasion.resolve_scope(link)
     except ValueError as e:
         raise ConfigError(str(e)) from e
