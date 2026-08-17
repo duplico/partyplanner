@@ -5,7 +5,12 @@ from ruamel.yaml import YAML
 
 from partyplanner import config
 from partyplanner.config import ConfigError
-from partyplanner.scaffold import scaffold_bootstrap, scaffold_occasion
+from partyplanner.scaffold import (
+    load_repo_config,
+    scaffold_bootstrap,
+    scaffold_occasion,
+    zone_for_domain,
+)
 
 
 def _occasion(tmp_path, **overrides):
@@ -20,7 +25,8 @@ def _occasion(tmp_path, **overrides):
 
 
 def test_scaffold_occasion_writes_capsule_and_workflows(tmp_path):
-    paths = _occasion(tmp_path)
+    paths, kept = _occasion(tmp_path)
+    assert kept == []
     assert [p.relative_to(tmp_path).as_posix() for p in paths] == [
         "occasions/bbq-2026/occasion.yaml",
         "occasions/bbq-2026/terraform/main.tf",
@@ -112,18 +118,67 @@ def test_scaffold_occasion_rejects_bad_name(tmp_path):
 
 
 def test_scaffold_bootstrap_writes_root(tmp_path):
-    paths = scaffold_bootstrap(
+    paths, kept = scaffold_bootstrap(
         tmp_path,
         zones=["allhallowtide.party", "events.example.com"],
         budget_email="you@example.com",
         budget_limit=10,
         github_repo="1512-ninja/events",
+        state_bucket="my-tf-state",
     )
-    assert paths == [tmp_path / "bootstrap" / "main.tf"]
+    assert kept == []
+    assert paths == [tmp_path / "bootstrap" / "main.tf", tmp_path / "partyplanner.yaml"]
     tf = paths[0].read_text()
     assert 'zones            = ["allhallowtide.party", "events.example.com"]' in tf
     assert "repo:1512-ninja/events:ref:refs/heads/default" in tf
     assert 'key    = "bootstrap/terraform.tfstate"' in tf
+    assert load_repo_config(tmp_path) == {
+        "state_bucket": "my-tf-state",
+        "region": "us-east-1",
+        "branch": "default",
+        "ref": "default",
+    }
+
+
+def test_scaffold_bootstrap_without_bucket_leaves_it_commented(tmp_path):
+    scaffold_bootstrap(
+        tmp_path,
+        zones=["events.example.com"],
+        budget_email="you@example.com",
+        budget_limit=10,
+        github_repo="1512-ninja/events",
+    )
+    assert "state_bucket" not in load_repo_config(tmp_path)
+    assert "# state_bucket:" in (tmp_path / "partyplanner.yaml").read_text()
+
+
+def test_scaffold_bootstrap_force_keeps_edited_repo_config(tmp_path):
+    def _bootstrap(**kwargs):
+        return scaffold_bootstrap(
+            tmp_path,
+            zones=["events.example.com"],
+            budget_email="you@example.com",
+            budget_limit=10,
+            github_repo="1512-ninja/events",
+            state_bucket="my-tf-state",
+            **kwargs,
+        )
+
+    _bootstrap()
+    config = tmp_path / "partyplanner.yaml"
+    config.write_text("state_bucket: my-tf-state\nref: v0.2.0\n")
+    written, kept = _bootstrap(force=True)
+    assert kept == [config]
+    assert config.read_text() == "state_bucket: my-tf-state\nref: v0.2.0\n"
+    assert written == [tmp_path / "bootstrap" / "main.tf"]
+
+
+def test_force_regenerated_files_keep_umask_permissions(tmp_path):
+    _occasion(tmp_path)
+    tf = tmp_path / "occasions/bbq-2026/terraform/main.tf"
+    before = tf.stat().st_mode & 0o777
+    _occasion(tmp_path, force=True)
+    assert tf.stat().st_mode & 0o777 == before
 
 
 def test_scaffold_bootstrap_rejects_bad_repo(tmp_path):
@@ -161,6 +216,111 @@ def test_scaffold_bootstrap_rejects_bad_email(tmp_path, email):
             budget_limit=10,
             github_repo="1512-ninja/events",
         )
+
+
+def _write_repo_config(tmp_path, **extra):
+    lines = {"state_bucket": "cfg-tf-state", "region": "us-west-2", "ref": "v0.2.0", **extra}
+    (tmp_path / "partyplanner.yaml").write_text("".join(f"{k}: {v}\n" for k, v in lines.items()))
+
+
+def test_load_repo_config_rejects_invalid_yaml(tmp_path):
+    (tmp_path / "partyplanner.yaml").write_text("state_bucket: [unclosed\n")
+    with pytest.raises(ConfigError, match="invalid YAML"):
+        load_repo_config(tmp_path)
+
+
+def test_repo_config_roundtrips_numeric_looking_values(tmp_path):
+    scaffold_bootstrap(
+        tmp_path,
+        zones=["events.example.com"],
+        budget_email="you@example.com",
+        budget_limit=10,
+        github_repo="1512-ninja/events",
+        state_bucket="123456",
+        ref="2026.1",
+    )
+    config = load_repo_config(tmp_path)
+    assert config["state_bucket"] == "123456"
+    assert config["ref"] == "2026.1"
+
+
+def test_scaffold_occasion_reads_repo_config(tmp_path):
+    _write_repo_config(tmp_path)
+    scaffold_occasion(
+        tmp_path,
+        "bbq-2026",
+        domain="bbq-2026.events.example.com",
+        zone_id="Z0123456789EXAMPLE",
+        role_arn="arn:aws:iam::123456789012:role/partyplanner-deploy",
+    )
+    yaml = YAML(typ="safe")
+    job = next(iter(yaml.load(tmp_path / ".github/workflows/deploy-bbq-2026.yml")["jobs"].values()))
+    assert job["with"]["tf_state_bucket"] == "cfg-tf-state"
+    assert job["with"]["aws_region"] == "us-west-2"
+    assert job["with"]["partyplanner_ref"] == "v0.2.0"
+
+
+def test_scaffold_occasion_flags_override_repo_config(tmp_path):
+    _write_repo_config(tmp_path)
+    _occasion(tmp_path, ref="v9")
+    tf = (tmp_path / "occasions/bbq-2026/terraform/main.tf").read_text()
+    assert "modules/occasion?ref=v9" in tf
+    assert 'bucket = "my-tf-state"' not in tf  # bucket comes via -backend-config, not HCL
+
+
+def test_scaffold_occasion_without_state_bucket_anywhere(tmp_path):
+    with pytest.raises(ConfigError, match="state bucket"):
+        scaffold_occasion(
+            tmp_path,
+            "bbq-2026",
+            domain="bbq.example.com",
+            zone_id="Z0123456789EXAMPLE",
+            role_arn="arn:aws:iam::123456789012:role/partyplanner-deploy",
+        )
+
+
+def test_scaffold_occasion_resolves_from_bootstrap_outputs(tmp_path, monkeypatch):
+    _write_repo_config(tmp_path)
+    outputs = {
+        "deploy_role_arn": "arn:aws:iam::123456789012:role/partyplanner-deploy",
+        "zone_ids": {
+            "example.com": "ZAAAAAAAAAAAAAAAAA",
+            "events.example.com": "Z0123456789EXAMPLE",
+        },
+    }
+    monkeypatch.setattr("partyplanner.scaffold.bootstrap_outputs", lambda root: outputs)
+    scaffold_occasion(tmp_path, "bbq-2026", domain="bbq-2026.events.example.com")
+    tf = (tmp_path / "occasions/bbq-2026/terraform/main.tf").read_text()
+    assert 'zone_id = "Z0123456789EXAMPLE"' in tf  # longest zone suffix wins
+
+
+def test_scaffold_occasion_missing_bootstrap_root(tmp_path):
+    _write_repo_config(tmp_path)
+    with pytest.raises(ConfigError, match="no bootstrap root"):
+        scaffold_occasion(tmp_path, "bbq-2026", domain="bbq.example.com")
+
+
+def test_zone_for_domain():
+    zones = {"example.com": "Z1", "events.example.com": "Z2"}
+    assert zone_for_domain(zones, "example.com") == "Z1"
+    assert zone_for_domain(zones, "a.example.com") == "Z1"
+    assert zone_for_domain(zones, "a.events.example.com") == "Z2"
+    with pytest.raises(ConfigError, match="no bootstrap zone"):
+        zone_for_domain(zones, "other.net")
+    with pytest.raises(ConfigError, match="no bootstrap zone"):
+        zone_for_domain(zones, "notexample.com")
+
+
+def test_scaffold_occasion_force_regenerates_but_keeps_config(tmp_path):
+    _occasion(tmp_path)
+    occasion_yaml = tmp_path / "occasions/bbq-2026/occasion.yaml"
+    occasion_yaml.write_text("title: Hand Edited\n")
+    written, kept = _occasion(tmp_path, ref="v0.2.0", force=True)
+    assert kept == [occasion_yaml]
+    assert occasion_yaml.read_text() == "title: Hand Edited\n"
+    assert occasion_yaml not in written
+    tf = (tmp_path / "occasions/bbq-2026/terraform/main.tf").read_text()
+    assert "modules/occasion?ref=v0.2.0" in tf
 
 
 def test_scaffold_numeric_occasion_name_yields_valid_config(tmp_path):

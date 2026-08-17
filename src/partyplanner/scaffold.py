@@ -8,14 +8,23 @@ workflows).
 
 from __future__ import annotations
 
+import contextlib
+import json
+import os
 import re
+import subprocess
 from datetime import date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from jinja2 import Environment, PackageLoader
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 
 from .config import ConfigError
+
+REPO_CONFIG = "partyplanner.yaml"
+REPO_CONFIG_KEYS = ("state_bucket", "region", "branch", "ref", "timezone")
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}\Z")
 GITHUB_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
@@ -56,26 +65,131 @@ def _check_bucket(value: str) -> str:
     return value
 
 
-def _write_all(files: list[tuple[Path, str]]) -> list[Path]:
-    """Write all files or none. Existence is checked up front, files are
-    opened exclusively (never truncating something that appeared since the
-    check), and files written so far are removed if a later write fails."""
-    existing = [path for path, _ in files if path.exists()]
-    if existing:
-        listing = ", ".join(str(p) for p in existing)
-        raise ConfigError(f"refusing to overwrite existing {listing}")
-    written: list[Path] = []
-    try:
-        for path, content in files:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("x", encoding="utf-8") as f:
+def _write_all(
+    files: list[tuple[Path, str]],
+    *,
+    force: bool = False,
+    preserve: frozenset[Path] = frozenset(),
+) -> tuple[list[Path], list[Path]]:
+    """Write the given files, returning (written, kept).
+
+    Without force this is all-or-nothing: existence is checked up front,
+    files are opened exclusively (never truncating something that appeared
+    since the check), and files written so far are removed if a later write
+    fails. With force, files are replaced atomically (temp file + rename) —
+    except paths in `preserve` that already exist, which are kept as-is."""
+    if not force:
+        existing = [path for path, _ in files if path.exists()]
+        if existing:
+            listing = ", ".join(str(p) for p in existing)
+            raise ConfigError(f"refusing to overwrite existing {listing} (--force to regenerate)")
+        written: list[Path] = []
+        try:
+            for path, content in files:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("x", encoding="utf-8") as f:
+                    f.write(content)
+                written.append(path)
+        except OSError as e:
+            for path in written:
+                path.unlink(missing_ok=True)
+            raise ConfigError(f"scaffold write failed, nothing created: {e}") from e
+        return [path for path, _ in files], []
+    kept = [path for path, _ in files if path in preserve and path.exists()]
+    replaced: list[Path] = []
+    for path, content in files:
+        if path in kept:
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
-            written.append(path)
-    except OSError as e:
-        for path in written:
-            path.unlink(missing_ok=True)
-        raise ConfigError(f"scaffold write failed, nothing created: {e}") from e
-    return [path for path, _ in files]
+            os.replace(tmp, path)
+        except OSError as e:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
+            raise ConfigError(f"scaffold write failed at {path}: {e}") from e
+        replaced.append(path)
+    return replaced, kept
+
+
+def load_repo_config(root: Path) -> dict[str, str]:
+    """Read shared defaults from partyplanner.yaml at the repo root."""
+    path = root / REPO_CONFIG
+    if not path.exists():
+        return {}
+    try:
+        data = YAML(typ="safe").load(path) or {}
+    except YAMLError as e:
+        raise ConfigError(f"{path}: invalid YAML: {e}") from e
+    if not isinstance(data, dict):
+        raise ConfigError(f"{path} must be a YAML mapping")
+    out: dict[str, str] = {}
+    for key in REPO_CONFIG_KEYS:
+        value = data.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise ConfigError(f"{path}: {key} must be a string")
+        out[key] = value
+    return out
+
+
+def bootstrap_outputs(root: Path) -> dict:
+    """Read the bootstrap root's Terraform outputs (deploy_role_arn, zone_ids)."""
+    bootstrap_dir = root / "bootstrap"
+    if not (bootstrap_dir / "main.tf").exists():
+        raise ConfigError(
+            f"no bootstrap root at {bootstrap_dir}; run `partyplanner scaffold bootstrap`"
+            " and apply it, or pass --zone-id and --role-arn explicitly"
+        )
+    try:
+        proc = subprocess.run(
+            ["terraform", f"-chdir={bootstrap_dir}", "output", "-json"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except FileNotFoundError as e:
+        raise ConfigError(
+            "terraform not found on PATH; pass --zone-id and --role-arn explicitly"
+        ) from e
+    except subprocess.CalledProcessError as e:
+        raise ConfigError(f"terraform output failed:\n{e.stderr.strip()}") from e
+    outputs = json.loads(proc.stdout)
+    if not isinstance(outputs, dict):
+        raise ConfigError("unexpected terraform output format")
+    return {key: value.get("value") for key, value in outputs.items() if isinstance(value, dict)}
+
+
+def zone_for_domain(zone_ids: dict[str, str], domain: str) -> str:
+    """Pick the hosted zone the domain belongs to (longest-suffix match)."""
+    matches = [z for z in zone_ids if domain == z or domain.endswith("." + z)]
+    if not matches:
+        raise ConfigError(
+            f"no bootstrap zone matches domain {domain!r}"
+            f" (zones: {sorted(zone_ids)}); pass --zone-id explicitly"
+        )
+    return zone_ids[max(matches, key=len)]
+
+
+def _repo_config_content(*, state_bucket: str | None, region: str, branch: str, ref: str) -> str:
+    bucket_line = (
+        f'state_bucket: "{state_bucket}"\n'
+        if state_bucket
+        else "# state_bucket: your-tf-state-bucket\n"
+    )
+    return (
+        "# Written by `partyplanner scaffold bootstrap`; read by\n"
+        "# `partyplanner scaffold occasion` for shared defaults, so occasions only\n"
+        "# need a name and a --domain. Safe to edit.\n"
+        + bucket_line
+        + f'region: "{region}"\n'
+        + f'branch: "{branch}"\n'
+        + f'ref: "{ref}"\n'
+    )
 
 
 def scaffold_bootstrap(
@@ -85,14 +199,18 @@ def scaffold_bootstrap(
     budget_email: str,
     budget_limit: int,
     github_repo: str,
+    state_bucket: str | None = None,
     branch: str = "default",
     region: str = "us-east-1",
     ref: str = "default",
-) -> list[Path]:
-    """Write bootstrap/main.tf; returns the paths written."""
+    force: bool = False,
+) -> tuple[list[Path], list[Path]]:
+    """Write bootstrap/main.tf and partyplanner.yaml; returns (written, kept)."""
     for zone in zones:
         _check(HOSTNAME_RE, zone, "zone")
     _check(GITHUB_REPO_RE, github_repo, "github repo")
+    if state_bucket is not None:
+        _check_bucket(state_bucket)
     _check(REF_RE, branch, "branch")
     _check(REGION_RE, region, "region")
     _check(REF_RE, ref, "ref")
@@ -108,7 +226,17 @@ def scaffold_bootstrap(
         region=region,
         ref=ref,
     )
-    return _write_all([(root / "bootstrap" / "main.tf", content)])
+    repo_config = _repo_config_content(
+        state_bucket=state_bucket, region=region, branch=branch, ref=ref
+    )
+    return _write_all(
+        [
+            (root / "bootstrap" / "main.tf", content),
+            (root / REPO_CONFIG, repo_config),
+        ],
+        force=force,
+        preserve=frozenset({root / REPO_CONFIG}),
+    )
 
 
 def scaffold_occasion(
@@ -116,15 +244,46 @@ def scaffold_occasion(
     name: str,
     *,
     domain: str,
-    zone_id: str,
-    role_arn: str,
-    state_bucket: str,
-    timezone: str = "America/Chicago",
-    branch: str = "default",
-    region: str = "us-east-1",
-    ref: str = "default",
-) -> list[Path]:
-    """Write an occasion capsule + its workflows; returns the paths written."""
+    zone_id: str | None = None,
+    role_arn: str | None = None,
+    state_bucket: str | None = None,
+    timezone: str | None = None,
+    branch: str | None = None,
+    region: str | None = None,
+    ref: str | None = None,
+    force: bool = False,
+) -> tuple[list[Path], list[Path]]:
+    """Write an occasion capsule + its workflows; returns (written, kept).
+
+    Values not passed explicitly come from partyplanner.yaml at the repo root
+    and (for zone_id/role_arn) the bootstrap root's Terraform outputs."""
+    repo_config = load_repo_config(root)
+    state_bucket = state_bucket or repo_config.get("state_bucket")
+    timezone = timezone or repo_config.get("timezone") or "America/Chicago"
+    branch = branch or repo_config.get("branch") or "default"
+    region = region or repo_config.get("region") or "us-east-1"
+    ref = ref or repo_config.get("ref") or "default"
+    if state_bucket is None:
+        raise ConfigError(
+            f"no state bucket: pass --state-bucket or set state_bucket in {REPO_CONFIG}"
+        )
+    if zone_id is None or role_arn is None:
+        outputs = bootstrap_outputs(root)
+        if role_arn is None:
+            role_arn = outputs.get("deploy_role_arn")
+            if not isinstance(role_arn, str):
+                raise ConfigError(
+                    "bootstrap outputs have no deploy_role_arn"
+                    " (has it been applied?); pass --role-arn explicitly"
+                )
+        if zone_id is None:
+            zone_ids = outputs.get("zone_ids")
+            if not isinstance(zone_ids, dict):
+                raise ConfigError(
+                    "bootstrap outputs have no zone_ids"
+                    " (has it been applied?); pass --zone-id explicitly"
+                )
+            zone_id = zone_for_domain(zone_ids, domain)
     _check(NAME_RE, name, "occasion name")
     _check(HOSTNAME_RE, domain, "domain")
     _check(ZONE_ID_RE, zone_id, "zone id")
@@ -162,5 +321,8 @@ def scaffold_occasion(
             (occasion_dir / "terraform" / "main.tf", render("occasion_main.tf.j2")),
             (workflows / f"deploy-{name}.yml", render("deploy_workflow.yml.j2")),
             (workflows / f"destroy-{name}.yml", render("destroy_workflow.yml.j2")),
-        ]
+        ],
+        force=force,
+        # never regenerate over hand-edited config (holds minted ids/tokens)
+        preserve=frozenset({occasion_dir / "occasion.yaml"}),
     )
