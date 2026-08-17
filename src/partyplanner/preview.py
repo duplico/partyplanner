@@ -148,10 +148,9 @@ class ReloadState:
 
 
 RELOAD_SCRIPT = (
-    "<script>(function(){var v=null;setInterval(function(){"
+    "<script>(function(){var v=%d;setInterval(function(){"
     "fetch('/__preview__/version').then(function(r){return r.json()})"
-    ".then(function(d){if(v===null){v=d.version;}"
-    "else if(d.version!==v){location.reload();}}).catch(function(){});"
+    ".then(function(d){if(d.version!==v){location.reload();}}).catch(function(){});"
     "},1000);})();</script>"
 )
 
@@ -204,7 +203,7 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         if not path.is_file():
             return False
         content = path.read_bytes()
-        script = RELOAD_SCRIPT.encode()
+        script = (RELOAD_SCRIPT % self.reload_state.version).encode()
         if b"</body>" in content:
             content = content.replace(b"</body>", script + b"</body>", 1)
         else:
@@ -318,9 +317,16 @@ class Reloader:
             return False
         site = self.out_dir / "site"
         old = self.out_dir / ".old-site"
-        shutil.rmtree(old, ignore_errors=True)
-        site.rename(old)
-        (staging / "site").rename(site)
+        try:
+            shutil.rmtree(old, ignore_errors=True)
+            site.rename(old)
+            (staging / "site").rename(site)
+        except OSError as e:
+            if old.exists() and not site.exists():
+                old.rename(site)
+            shutil.rmtree(staging, ignore_errors=True)
+            self.echo(f"reload failed (fix and save again): {e}")
+            return False
         shutil.rmtree(old, ignore_errors=True)
         shutil.rmtree(staging, ignore_errors=True)
         self.occasion = fresh
@@ -339,7 +345,10 @@ class Reloader:
             new = self.snapshot()
             if new != sig:
                 sig = new
-                self.reload()
+                try:
+                    self.reload()
+                except Exception as e:  # keep watching: a dead watcher ends hot reload
+                    self.echo(f"reload failed (fix and save again): {e}")
 
 
 def run_preview(

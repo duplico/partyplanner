@@ -212,7 +212,7 @@ def test_reload_serves_fresh_site_and_bumps_version(tmp_path: Path):
     try:
         page = urllib.request.urlopen(f"{base}/i/{TOKEN}/").read().decode()
         assert "Before" in page
-        assert "/__preview__/version" in page  # auto-refresh script injected
+        assert "var v=0" in page  # auto-refresh script carries the serve-time version
         assert json.load(urllib.request.urlopen(f"{base}/__preview__/version")) == {"version": 0}
 
         store.rsvp({"token": TOKEN, "event_id": "a", "name": "Sam", "response": "yes"})
@@ -222,6 +222,7 @@ def test_reload_serves_fresh_site_and_bumps_version(tmp_path: Path):
 
         page = urllib.request.urlopen(f"{base}/i/{TOKEN}/").read().decode()
         assert "After" in page
+        assert "var v=1" in page
         assert json.load(urllib.request.urlopen(f"{base}/__preview__/version")) == {"version": 1}
         # RSVPs survive the reload
         assert store.state(TOKEN)["events"]["a"] == [
