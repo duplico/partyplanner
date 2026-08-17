@@ -206,7 +206,10 @@ class PreviewHandler(SimpleHTTPRequestHandler):
         # Version before content: a racing reload then costs at most one
         # extra refresh, never a stale page with a too-new baseline.
         script = (RELOAD_SCRIPT % self.reload_state.version).encode()
-        content = path.read_bytes()
+        try:
+            content = path.read_bytes()
+        except OSError:
+            return False  # swapped out mid-reload; let the default handler 404
         if b"</body>" in content:
             content = content.replace(b"</body>", script + b"</body>", 1)
         else:
