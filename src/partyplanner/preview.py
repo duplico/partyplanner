@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from .aws import link_items
-from .config import Occasion
+from .config import ConfigError, Occasion
 from .render import render
 from .tokens import derive_id, mint_token
 
@@ -194,7 +194,10 @@ def run_preview(
     with tempfile.TemporaryDirectory(prefix="partyplanner-preview-") as tmp:
         out_dir = Path(tmp)
         render(occasion, config_dir, out_dir)
-        server = make_server(occasion, out_dir / "site", port)
+        try:
+            server = make_server(occasion, out_dir / "site", port)
+        except OSError as e:
+            raise ConfigError(f"cannot serve on port {port}: {e}") from e
         base = f"http://127.0.0.1:{server.server_address[1]}"
         rendered_at = dt.datetime.now().strftime("%H:%M:%S")
         echo(f"previewing {occasion.title!r} (rendered {rendered_at}; Ctrl+C to stop)")

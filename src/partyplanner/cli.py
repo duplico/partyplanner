@@ -76,8 +76,6 @@ def preview(config_path: Path, port: int, open_browser: bool) -> None:
         run_preview(occasion, config_path.parent, port, open_browser, echo=click.echo)
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
-    except OSError as e:
-        raise click.ClickException(f"cannot serve on port {port}: {e}") from e
 
 
 @main.command()
