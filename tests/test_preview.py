@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 import urllib.request
 from pathlib import Path
 from urllib.error import HTTPError
@@ -7,7 +8,15 @@ from urllib.error import HTTPError
 import pytest
 
 from partyplanner import config
-from partyplanner.preview import PreviewError, PreviewStore, completed, make_server, preview_urls
+from partyplanner.preview import (
+    PreviewError,
+    PreviewStore,
+    Reloader,
+    ReloadState,
+    completed,
+    make_server,
+    preview_urls,
+)
 from partyplanner.render import render
 from partyplanner.tokens import TOKEN_RE
 
@@ -151,4 +160,123 @@ def test_server_serves_site_and_api_end_to_end(tmp_path: Path):
     finally:
         server.shutdown()
         server.server_close()
+        thread.join(timeout=5)
+
+
+def test_completed_reuses_preview_tokens_across_reloads():
+    occasion = _occasion(links=[{"note": "new"}])
+    first, _ = completed(occasion)
+    second, notes = completed(occasion, previous=first)
+    assert second.links[0].token == first.links[0].token
+    assert notes == []
+
+
+def test_completed_reuses_synthetic_link_token_across_reloads():
+    first, _ = completed(_occasion(links=[]))
+    second, notes = completed(_occasion(links=[]), previous=first)
+    assert second.links[0].token == first.links[0].token
+    assert notes == []
+
+
+def _write_config(config_dir: Path, title: str) -> Path:
+    config_dir.mkdir(exist_ok=True)
+    config_path = config_dir / "occasion.yaml"
+    config_path.write_text(
+        f"""\
+title: {title}
+domain: t.example.com
+timezone: America/Chicago
+events:
+  - id: a
+    title: A
+    when: 2026-06-20 15:00
+links:
+  - token: {TOKEN}
+    scope: all
+"""
+    )
+    return config_path
+
+
+def test_reload_serves_fresh_site_and_bumps_version(tmp_path: Path):
+    config_path = _write_config(tmp_path / "cfg", "Before")
+    occasion = config.load(config_path)
+    out_dir = tmp_path / "out"
+    render(occasion, tmp_path / "cfg", out_dir)
+    store = PreviewStore(occasion)
+    reload_state = ReloadState()
+    server = make_server(occasion, out_dir / "site", port=0, store=store, reload_state=reload_state)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        page = urllib.request.urlopen(f"{base}/i/{TOKEN}/").read().decode()
+        assert "Before" in page
+        assert "/__preview__/version" in page  # auto-refresh script injected
+        assert json.load(urllib.request.urlopen(f"{base}/__preview__/version")) == {"version": 0}
+
+        store.rsvp({"token": TOKEN, "event_id": "a", "name": "Sam", "response": "yes"})
+        _write_config(tmp_path / "cfg", "After")
+        reloader = Reloader(config_path, out_dir, store, reload_state, base, occasion, echo=print)
+        assert reloader.reload()
+
+        page = urllib.request.urlopen(f"{base}/i/{TOKEN}/").read().decode()
+        assert "After" in page
+        assert json.load(urllib.request.urlopen(f"{base}/__preview__/version")) == {"version": 1}
+        # RSVPs survive the reload
+        assert store.state(TOKEN)["events"]["a"] == [
+            {"name": "Sam", "response": "yes", "party_size": 0}
+        ]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_reload_keeps_old_site_when_config_is_broken(tmp_path: Path):
+    config_path = _write_config(tmp_path / "cfg", "Good")
+    occasion = config.load(config_path)
+    out_dir = tmp_path / "out"
+    render(occasion, tmp_path / "cfg", out_dir)
+    store = PreviewStore(occasion)
+    reload_state = ReloadState()
+    messages: list[str] = []
+    config_path.write_text("title: [broken\n")
+    reloader = Reloader(
+        config_path, out_dir, store, reload_state, "http://x", occasion, echo=messages.append
+    )
+    assert not reloader.reload()
+    assert reload_state.version == 0
+    assert any("reload failed" in m for m in messages)
+    assert "Good" in (out_dir / "site" / "i" / TOKEN / "index.html").read_text()
+
+
+def test_watch_triggers_reload_on_change(tmp_path: Path):
+    config_path = _write_config(tmp_path / "cfg", "Before")
+    occasion = config.load(config_path)
+    out_dir = tmp_path / "out"
+    render(occasion, tmp_path / "cfg", out_dir)
+    reload_state = ReloadState()
+    reloader = Reloader(
+        config_path,
+        out_dir,
+        PreviewStore(occasion),
+        reload_state,
+        "http://x",
+        occasion,
+        echo=lambda _: None,
+    )
+    stop = threading.Event()
+    thread = threading.Thread(target=reloader.watch, args=(stop, 0.05), daemon=True)
+    thread.start()
+    try:
+        time.sleep(0.2)
+        _write_config(tmp_path / "cfg", "After")
+        deadline = time.monotonic() + 5
+        while reload_state.version == 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert reload_state.version >= 1
+        assert "After" in (out_dir / "site" / "i" / TOKEN / "index.html").read_text()
+    finally:
+        stop.set()
         thread.join(timeout=5)

@@ -64,6 +64,7 @@ class Event(BaseModel):
     when: dt.datetime | None = None
     end: dt.datetime | None = None
     where: str | None = None
+    where_url: str | None = None
     blurb: str | None = None
     photo: str | None = None
     accent: str | None = None
@@ -87,8 +88,17 @@ class Event(BaseModel):
             return dt.datetime(v.year, v.month, v.day)
         return v
 
+    @field_validator("where_url")
+    @classmethod
+    def _check_where_url(cls, v: str | None) -> str | None:
+        if v is not None and not v.startswith(("https://", "http://")):
+            raise ValueError(f"where_url {v!r} must be an http(s) URL")
+        return v
+
     @model_validator(mode="after")
     def _check(self) -> Event:
+        if self.where_url is not None and self.where is None:
+            raise ValueError(f"event {self.title!r} has a `where_url` but no `where`")
         if self.rsvp == "open" and self.when is None:
             raise ValueError(f"event {self.title!r} has rsvp: open and needs a `when`")
         if self.end is not None and self.when is None:

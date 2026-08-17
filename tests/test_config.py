@@ -253,3 +253,30 @@ def test_theme_and_accent_accepted():
 def test_unknown_theme_key_rejected():
     with pytest.raises(ConfigError):
         config.parse(_minimal(theme={"font": "Comic Sans"}))
+
+
+def test_where_url_without_where_rejected():
+    events = [
+        {
+            "id": "a",
+            "title": "A",
+            "when": "2026-06-20 15:00",
+            "where_url": "https://maps.example.com/x",
+        }
+    ]
+    with pytest.raises(ConfigError, match="`where_url` but no `where`"):
+        config.parse(_minimal(events=events))
+
+
+def test_non_http_where_url_rejected():
+    events = [
+        {
+            "id": "a",
+            "title": "A",
+            "when": "2026-06-20 15:00",
+            "where": "X",
+            "where_url": "javascript:alert(1)",
+        }
+    ]
+    with pytest.raises(ConfigError, match="http"):
+        config.parse(_minimal(events=events))

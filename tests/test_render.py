@@ -313,3 +313,54 @@ def test_render_calendar_links(tmp_path: Path):
     assert "https://outlook.live.com/calendar/0/deeplink/compose?" in page
     assert "https://calendar.yahoo.com/?" in page
     assert 'href="bbq.ics" download' in page
+
+
+def test_render_where_links_to_google_maps(tmp_path: Path):
+    occasion = _asset_occasion(
+        tmp_path,
+        events=[
+            {"id": "a", "title": "A", "when": "2026-06-20 15:00", "where": "123 Main St & Oak"},
+        ],
+    )
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert (
+        '<a href="https://www.google.com/maps/search/?api=1&amp;query=123%20Main%20St%20%26%20Oak"'
+        in page
+    )
+    assert ">123 Main St &amp; Oak</a>" in page
+
+
+def test_render_where_url_override(tmp_path: Path):
+    occasion = _asset_occasion(
+        tmp_path,
+        events=[
+            {
+                "id": "a",
+                "title": "A",
+                "when": "2026-06-20 15:00",
+                "where": "The Park",
+                "where_url": "https://maps.app.goo.gl/abc123",
+            },
+        ],
+    )
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert '<a href="https://maps.app.goo.gl/abc123"' in page
+    assert "google.com/maps/search" not in page
+
+
+def test_render_title_only_info_card(tmp_path: Path):
+    occasion = _asset_occasion(
+        tmp_path,
+        events=[
+            {"id": "a", "title": "A", "when": "2026-06-20 15:00"},
+            {"id": "stay", "title": "Where to stay", "rsvp": "none", "blurb": "Hotel A or B."},
+        ],
+    )
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert "Where to stay" in page
+    assert "Hotel A or B." in page
+    card = page.split('id="stay"')[1].split("</section>")[0]
+    assert "when" not in card and "where" not in card and "rsvp" not in card

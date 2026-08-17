@@ -3,11 +3,12 @@ from __future__ import annotations
 import datetime as dt
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 
 from defusedcsv import csv
 from jinja2 import Environment, PackageLoader
 
-from .config import ConfigError, Occasion, require_complete
+from .config import ConfigError, Event, Occasion, require_complete
 from .ics import calendar_links, event_ics
 from .md import md_html, md_plain
 
@@ -49,6 +50,14 @@ def _theme_css(occasion: Occasion) -> str | None:
     if not lines:
         return None
     return ":root {\n" + "\n".join(lines) + "\n}"
+
+
+def _where_url(event: Event) -> str | None:
+    if event.where is None:
+        return None
+    return event.where_url or (
+        f"https://www.google.com/maps/search/?api=1&query={quote(event.where)}"
+    )
 
 
 def _contained(base: Path, rel: str) -> Path:
@@ -103,6 +112,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
             "title": event.title,
             "when": _fmt_when(event.when, event.end, occasion) if event.when else None,
             "where": event.where,
+            "where_url": _where_url(event),
             "blurb": md_html(event.blurb) if event.blurb else None,
             "photo": asset(event.photo),
             "accent": event.accent,

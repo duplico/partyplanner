@@ -20,7 +20,7 @@
   </p>
   {% endif %}
   {% endif %}
-  {% if event.where %}<p class="where">{{ event.where }}</p>{% endif %}
+  {% if event.where %}<p class="where"><a href="{{ event.where_url }}" target="_blank" rel="noopener noreferrer">{{ event.where }}</a></p>{% endif %}
   {% if event.blurb %}<div class="event-blurb">{{ event.blurb }}</div>{% endif %}
   {% if event.rsvp_open %}
   <div class="rsvp" data-event-id="{{ event.id }}">

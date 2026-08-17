@@ -39,6 +39,7 @@ h1 { font-size: 2rem; margin: 0.75rem 0 0.25rem; }
 .event-photo { width: 100%; border-radius: 8px; max-height: 240px; object-fit: cover; }
 .when { font-weight: 600; margin: 0.25rem 0; }
 .where { color: var(--muted); margin: 0.25rem 0; }
+.where a { color: inherit; text-decoration: underline; }
 .cal-links { color: var(--muted); font-size: 0.9em; margin: 0.25rem 0; }
 .cal-links a { color: var(--accent); }
 .event-blurb p, .blurb p { margin: 0.25rem 0 0.6rem; }

@@ -14,9 +14,11 @@ photo, blurb, time, place, link in the group chat, done."
   DynamoDB table. Occasions share nothing; retire them independently.
 - An occasion contains **events** (dinner, bar crawl, candy crew, main party…),
   each with a time, place, blurb, and an RSVP list (or `rsvp: none` for
-  informational cards like a live stream link). Blurbs are **Markdown**
+  informational cards like a live stream link — only `title` is required, so a
+  card can be as little as a title and a blurb). Blurbs are **Markdown**
   (raw HTML is escaped); single newlines flow within a paragraph, blank lines
-  start a new one.
+  start a new one. An event's `where` renders as a link to a Google Maps
+  search; set `where_url` to point it somewhere else.
 - A **link** is the unit of invitation: an unguessable URL whose **scope** is a
   subset of the occasion's events. The link is both the invitation and the
   credential — no logins. Forward it freely; recipients self-identify by name.
@@ -95,7 +97,10 @@ still works and is merged in for back-compat.
 `preview` needs no mint and no AWS: unminted events/links get preview-only
 ids/tokens (the file is untouched), every invitation link's view gets its own
 local URL, and the RSVP forms work against an in-memory stand-in for the API
-that is discarded when the server stops. It binds loopback only; if you need
+that is discarded when the server stops. It watches the config and its assets:
+saving an edit re-renders the site and open pages refresh themselves (broken
+edits keep the last good render and print the error). It binds loopback only;
+if you need
 to reach it from outside (e.g. a Windows browser when WSL2 localhost
 forwarding misbehaves), pass `--host 0.0.0.0` and browse to the machine's IP.
 
