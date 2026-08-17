@@ -30,6 +30,8 @@ The repo must have `bootstrap/main.tf` present (run `init` first)
 or `bootstrap_outputs` errors before even calling terraform.
 
 ## Key behaviors and expected outputs
+- `--github-repo` accepts `ORG/REPO` or the ID-pinned `ORG@id/REPO@id`
+  (digits only after `@`); either lands verbatim in the trust policy sub.
 - `init --dir R --zone Z --budget-email E --github-repo O/R2`
   writes `bootstrap/main.tf` AND `partyplanner.yaml` (state_bucket/region/branch/ref).
   `--state-bucket` reads `$TF_STATE_BUCKET` via click envvar; when known it is

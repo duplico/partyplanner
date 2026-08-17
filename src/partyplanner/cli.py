@@ -141,10 +141,8 @@ def init_cmd(
         click.echo(f"wrote {path}")
     for path in kept:
         click.echo(f"kept {path}")
-    click.echo(
-        "next: cd bootstrap && "
-        'terraform init -backend-config="bucket=$TF_STATE_BUCKET" && terraform apply'
-    )
+    backend_config = "" if state_bucket else ' -backend-config="bucket=$TF_STATE_BUCKET"'
+    click.echo(f"next: cd bootstrap && terraform init{backend_config} && terraform apply")
 
 
 @main.command("new")
