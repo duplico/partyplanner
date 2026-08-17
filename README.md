@@ -60,8 +60,8 @@ group chat link, forward freely	https://bbq-2026.events.example.com/i/k7f3q2vmxw
 ```
 
 See `fixtures/allhallowtide/` for the maximal example: six events, scoped
-links, a landing-page stream embed, theme colors and per-event accents, a
-favicon, optional end times, per-occasion CSS overrides, and a revoked token.
+links, a landing-page stream embed, theme colors and per-event accents,
+optional end times, per-occasion CSS overrides, and a revoked token.
 
 ## CLI
 

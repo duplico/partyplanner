@@ -4,7 +4,6 @@ title: Allhallowtide 2026
 domain: 2026.allhallowtide.example.com
 timezone: America/Chicago
 photo: ./assets/hero.svg
-favicon: ./assets/favicon.svg
 theme:
   accent: "#d1550f"
   bg: "#f7f2ea"
