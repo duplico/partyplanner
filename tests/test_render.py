@@ -149,8 +149,9 @@ def test_markdown_blurbs_render(tmp_path: Path):
     assert "<p><strong>Big</strong> party\nyou're invited</p>" in page
     assert "<p>Second paragraph.</p>" in page
     assert '<a href="https://example.com/chairs">a chair</a>' in page
-    # og:description is the first line with markup stripped
-    assert 'og:description" content="Big party"' in page
+    # og:description is the first paragraph with markup stripped;
+    # soft line breaks flow into one line
+    assert 'og:description" content="Big party you&#39;re invited"' in page
 
 
 def test_markdown_landing_blurb(tmp_path: Path):

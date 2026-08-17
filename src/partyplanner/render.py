@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 import shutil
 from pathlib import Path
 from urllib.parse import quote
@@ -50,6 +51,15 @@ def _theme_css(occasion: Occasion) -> str | None:
     if not lines:
         return None
     return ":root {\n" + "\n".join(lines) + "\n}"
+
+
+def _og_description(blurb: str | None) -> str:
+    """Plain-text first paragraph of the blurb, for link unfurls.
+
+    Soft line breaks flow into one line, matching how the blurb renders.
+    """
+    paragraph = re.split(r"\n\s*\n", (blurb or "").strip())[0]
+    return md_plain(" ".join(paragraph.split())) or "You're invited."
 
 
 def _where_url(event: Event) -> str | None:
@@ -123,7 +133,6 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
             "ics": f"{event_id}.ics" if event.when is not None else None,
         }
 
-    blurb_first_line = (occasion.blurb or "").strip().splitlines()
     base_ctx = {
         "occasion": occasion,
         "occasion_photo": occasion_photo,
@@ -131,8 +140,7 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
         "favicon": favicon,
         "theme_css": _theme_css(occasion),
         "og_image": f"https://{occasion.domain}{occasion_photo}" if occasion_photo else None,
-        "og_description": (md_plain(blurb_first_line[0]) if blurb_first_line else "")
-        or "You're invited.",
+        "og_description": _og_description(occasion.blurb),
     }
 
     landing_ctx = dict(
