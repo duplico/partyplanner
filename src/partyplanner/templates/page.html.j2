@@ -3,7 +3,7 @@
 <header>
   {% if occasion_photo %}<img class="hero" src="{{ occasion_photo }}" alt="">{% endif %}
   <h1>{{ occasion.title }}</h1>
-  {% if occasion.blurb %}<p class="blurb">{{ occasion.blurb }}</p>{% endif %}
+  {% if occasion_blurb %}<div class="blurb">{{ occasion_blurb }}</div>{% endif %}
 </header>
 {% for event in events %}
 <section class="event" id="{{ event.id }}"{% if event.accent %} style="--accent: {{ event.accent }}"{% endif %}>
@@ -21,7 +21,7 @@
   {% endif %}
   {% endif %}
   {% if event.where %}<p class="where">{{ event.where }}</p>{% endif %}
-  {% if event.blurb %}<p class="event-blurb">{{ event.blurb }}</p>{% endif %}
+  {% if event.blurb %}<div class="event-blurb">{{ event.blurb }}</div>{% endif %}
   {% if event.rsvp_open %}
   <div class="rsvp" data-event-id="{{ event.id }}">
     <h3>Who's coming <span class="counts" data-counts="{{ event.id }}"></span></h3>
