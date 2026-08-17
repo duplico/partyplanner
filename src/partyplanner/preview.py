@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+import shutil
 import tempfile
 import threading
 from functools import partial
@@ -31,6 +32,10 @@ MAX_BODY = 2048
 EVENT_ID_RE = re.compile(r"^[a-z0-9-]{1,64}\Z")
 
 
+def _link_key(note: str | None, prefill_name: str | None, scope: str | list[str]) -> tuple:
+    return (note, prefill_name, tuple(scope) if isinstance(scope, list) else scope)
+
+
 def completed(occasion: Occasion, previous: Occasion | None = None) -> tuple[Occasion, list[str]]:
     """A copy with preview-only ids/tokens filled in wherever `mint` hasn't run.
 
@@ -44,14 +49,25 @@ def completed(occasion: Occasion, previous: Occasion | None = None) -> tuple[Occ
     for event in data["events"]:
         if event["id"] is None:
             event["id"] = derive_id(event["title"])
+    used = {link["token"] for link in data["links"] if link["token"] is not None}
+    prev_tokens: dict[tuple, list[str]] = {}
+    for pl in prev_links:
+        if pl.token is not None:
+            prev_tokens.setdefault(_link_key(pl.note, pl.prefill_name, pl.scope), []).append(
+                pl.token
+            )
     for i, link in enumerate(data["links"]):
         if link["token"] is None:
-            if i < len(prev_links) and prev_links[i].token is not None:
-                link["token"] = prev_links[i].token
+            key = _link_key(link["note"], link["prefill_name"], link["scope"])
+            reusable = [t for t in prev_tokens.get(key, []) if t not in used]
+            if reusable:
+                link["token"] = reusable[0]
+                prev_tokens[key].remove(reusable[0])
             else:
                 link["token"] = mint_token()
                 label = link["prefill_name"] or link["note"] or f"link #{i + 1}"
                 notes.append(f"unminted link {label!r}: using a preview-only token")
+            used.add(link["token"])
     if not data["links"]:
         token = prev_links[0].token if prev_links and prev_links[0].token else mint_token()
         data["links"] = [{"token": token, "note": "preview-only link (scope: all)"}]
@@ -285,14 +301,28 @@ class Reloader:
         return files
 
     def reload(self) -> bool:
-        """Re-render the site; returns True on success."""
+        """Re-render the site; returns True on success.
+
+        Renders into a staging dir and swaps it in only on success, so a
+        broken edit never disturbs the currently served site.
+        """
         urls_before = preview_urls(self.occasion, self.base)
+        staging = self.out_dir / ".staging"
         try:
             fresh, _ = completed(load(self.config_path), previous=self.occasion)
-            render(fresh, self.config_dir, self.out_dir)
-        except (ConfigError, OSError) as e:
+            shutil.rmtree(staging, ignore_errors=True)
+            render(fresh, self.config_dir, staging)
+        except (ValueError, OSError) as e:
+            shutil.rmtree(staging, ignore_errors=True)
             self.echo(f"reload failed (fix and save again): {e}")
             return False
+        site = self.out_dir / "site"
+        old = self.out_dir / ".old-site"
+        shutil.rmtree(old, ignore_errors=True)
+        site.rename(old)
+        (staging / "site").rename(site)
+        shutil.rmtree(old, ignore_errors=True)
+        shutil.rmtree(staging, ignore_errors=True)
         self.occasion = fresh
         self.store.update(fresh)
         self.reload_state.version += 1

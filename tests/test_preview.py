@@ -280,3 +280,38 @@ def test_watch_triggers_reload_on_change(tmp_path: Path):
     finally:
         stop.set()
         thread.join(timeout=5)
+
+
+def test_completed_new_link_does_not_steal_an_existing_preview_token():
+    first, _ = completed(_occasion(links=[{"note": "old"}]))
+    old_token = first.links[0].token
+    second, notes = completed(_occasion(links=[{"note": "new"}, {"note": "old"}]), previous=first)
+    assert second.links[1].token == old_token
+    assert second.links[0].token != old_token
+    assert notes == ["unminted link 'new': using a preview-only token"]
+
+
+def test_reload_keeps_old_site_when_render_fails(tmp_path: Path):
+    config_dir = tmp_path / "cfg"
+    config_path = _write_config(config_dir, "Good")
+    (config_dir / "photo.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>")
+    config_path.write_text(config_path.read_text() + "photo: ./photo.svg\n")
+    occasion = config.load(config_path)
+    out_dir = tmp_path / "out"
+    render(occasion, config_dir, out_dir)
+    reload_state = ReloadState()
+    messages: list[str] = []
+    (config_dir / "photo.svg").unlink()
+    reloader = Reloader(
+        config_path,
+        out_dir,
+        PreviewStore(occasion),
+        reload_state,
+        "http://x",
+        occasion,
+        echo=messages.append,
+    )
+    assert not reloader.reload()
+    assert reload_state.version == 0
+    assert any("reload failed" in m for m in messages)
+    assert "Good" in (out_dir / "site" / "i" / TOKEN / "index.html").read_text()
