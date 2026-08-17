@@ -84,15 +84,70 @@ def preview(config_path: Path, port: int, host: str, open_browser: bool) -> None
         raise click.ClickException(str(e)) from e
 
 
-@main.command()
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
-def links(config_path: Path) -> None:
-    """Print the invitation links for an occasion."""
-    occasion = _load(config_path)
+def _print_links(occasion) -> None:
     for link in occasion.links:
         label = link.prefill_name or link.note or "(unlabeled)"
         url = f"https://{occasion.domain}/i/{link.token}/" if link.token else "(no token yet)"
         click.echo(f"{label}\t{url}")
+
+
+@main.command()
+@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+def links(config_path: Path) -> None:
+    """Print the invitation links for an occasion."""
+    _print_links(_load(config_path))
+
+
+@main.group()
+def link() -> None:
+    """Manage generated invitation links (stored in .links.yaml beside the config)."""
+
+
+@link.command("add")
+@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--scope",
+    default="all",
+    show_default=True,
+    help="`all`, a named scope from the config, or comma-separated event ids.",
+)
+@click.option("--note", default=None, help="Who/what this link is for.")
+@click.option("--prefill", "prefill_name", default=None, help="Pre-fill the RSVP name field.")
+def link_add(config_path: Path, scope: str, note: str | None, prefill_name: str | None) -> None:
+    """Mint a new invitation link into .links.yaml (commit the result)."""
+    occasion = _load(config_path)
+    scope_value: str | list[str] = scope
+    if scope != "all" and scope not in occasion.scopes:
+        scope_value = [s.strip() for s in scope.split(",") if s.strip()]
+        if not scope_value:
+            raise click.ClickException(
+                "--scope must be `all`, a named scope, or comma-separated event ids"
+            )
+    try:
+        new = config_mod.add_link(config_path, scope_value, note=note, prefill_name=prefill_name)
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
+    label = new.prefill_name or new.note or "(unlabeled)"
+    click.echo(f"{label}\thttps://{occasion.domain}/i/{new.token}/")
+
+
+@link.command("revoke")
+@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@click.argument("token")
+def link_revoke(config_path: Path, token: str) -> None:
+    """Move a link's token to `revoked:` so the URL 404s on the next deploy."""
+    try:
+        config_mod.revoke_link(config_path, token)
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
+    click.echo(f"revoked {token}")
+
+
+@link.command("list")
+@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+def link_list(config_path: Path) -> None:
+    """Print the invitation links for an occasion."""
+    _print_links(_load(config_path))
 
 
 @main.command("sync-links")
@@ -225,7 +280,10 @@ def new_cmd(
         click.echo(f"wrote {path}")
     for path in kept:
         click.echo(f"kept {path}")
-    click.echo(f"next: edit occasions/{name}/occasion.yaml, then partyplanner mint it")
+    click.echo(
+        f"next: edit occasions/{name}/occasion.yaml, `partyplanner mint` it, then "
+        "`partyplanner link add` to create invitation links"
+    )
 
 
 @main.group(hidden=True)

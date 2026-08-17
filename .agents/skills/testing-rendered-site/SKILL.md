@@ -34,7 +34,8 @@ You can run the *actual* handler locally against moto's in-memory DynamoDB:
    matching the CloudFront rewrite function in production.
 
 ## What to check
-- Tokens live in the fixture YAMLs (`links:`); the revoked one for allhallowtide
+- Tokens live in the fixture YAMLs (`links:` in the config, or the sibling
+  machine-generated `.links.yaml`); the revoked one for allhallowtide
   is `fixturerevokedtoken2` (check the YAML — docs elsewhere may cite a wrong token).
 - Scope enforcement: POST `/api/rsvp` with a token whose scope excludes the
   event_id must return HTTP 400 `{"error": "this link cannot RSVP to that event"}`.

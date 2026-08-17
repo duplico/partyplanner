@@ -54,19 +54,3 @@ events:
 scopes:
   full: [dinner, crawl, candy, party, stream, brunch]
   party-only: [candy, party, stream]
-links:
-  - token: fixtureaaronfull2222
-    prefill_name: Aaron
-    scope: full
-  - token: fixturechanceparty22
-    prefill_name: Chance
-    scope: party-only
-    note: asked to forward to Steve and James
-  - token: fixturegenericparty2
-    scope: party-only
-    note: generic party link for late adds
-  - token: fixturestreamonly222
-    scope: [stream]
-    note: stream-only spectators
-revoked:
-  - fixturerevokedtoken2

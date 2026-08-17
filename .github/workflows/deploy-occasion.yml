@@ -2,6 +2,7 @@
 #
 # Expects the caller repo to contain, under `occasion_dir`:
 #   occasion.yaml        the occasion config (already minted; run `partyplanner mint` locally)
+#   .links.yaml          generated invitation links (`partyplanner link add`), if any
 #   terraform/           a root module instantiating partyplanner's occasion module,
 #                        with outputs bucket, distribution_id, table_name passed through.
 name: deploy-occasion

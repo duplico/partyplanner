@@ -47,14 +47,13 @@ events:
   - title: BBQ
     when: 2026-06-20 15:00
     where: 123 Example Ave
-links:
-  - note: group chat link, forward freely
 ```
 
 ```console
-$ partyplanner mint occasion.yaml      # writes ids + tokens back into the file
+$ partyplanner mint occasion.yaml      # writes event ids back into the file
 event 'BBQ': id = bbq
-link 'group chat link, forward freely': token = k7f3q2vmxw4tzr6ehb2a
+$ partyplanner link add occasion.yaml --note "group chat link, forward freely"
+group chat link, forward freely	https://bbq-2026.events.example.com/i/k7f3q2vmxw4tzr6ehb2a/
 $ partyplanner preview occasion.yaml   # local preview at http://127.0.0.1:8000
 $ partyplanner render occasion.yaml    # out/site/ + out/links.csv
 $ partyplanner links occasion.yaml
@@ -71,6 +70,9 @@ optional end times, per-occasion CSS overrides, and a revoked token.
 | --- | --- |
 | `partyplanner validate <config>` | validate an occasion config |
 | `partyplanner mint <config>` | fill in missing event ids and link tokens (writes back, preserves comments) |
+| `partyplanner link add <config> --scope <s> --note <n> [--prefill <name>]` | mint a new invitation link into the machine-generated `.links.yaml` |
+| `partyplanner link revoke <config> <token>` | move a generated link's token to `revoked:` (URL 404s on next deploy) |
+| `partyplanner link list <config>` | print invitation URLs |
 | `partyplanner preview <config>` | render + serve locally with an in-memory RSVP API; prints a URL per link view |
 | `partyplanner render <config> --out out` | render static site, ICS files, and `links.csv` |
 | `partyplanner links <config>` | print invitation URLs |
@@ -81,9 +83,14 @@ optional end times, per-occasion CSS overrides, and a revoked token.
 
 `mint` is a local, committed step: `render` refuses to run with missing ids or
 tokens so that CI deploys are deterministic and **redeploys never rotate
-links**. To force-rotate a leaked link, move its token to `revoked:`, delete it
-from the link entry, and redeploy — the old URL 404s and a replacement is
-minted.
+links**.
+
+Links are managed with `partyplanner link add`/`revoke`, which write a
+machine-generated `.links.yaml` next to the occasion config (commit it; you
+hand-author `events:` and `scopes:`, the tool owns the links). To rotate a
+leaked link: `partyplanner link revoke <config> <token>`, then `link add` a
+replacement and redeploy. A `links:` section in the occasion config itself
+still works and is merged in for back-compat.
 
 `preview` needs no mint and no AWS: unminted events/links get preview-only
 ids/tokens (the file is untouched), every invitation link's view gets its own
