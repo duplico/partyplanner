@@ -142,7 +142,15 @@
   function prefillMine(eventId, rsvps) {
     var form = document.querySelector('[data-form="' + eventId + '"]');
     if (!form) return;
-    var mine = rsvps.filter(function (r) { return r.mine; })[0];
+    var owned = rsvps.filter(function (r) { return r.mine; });
+    // One key can own several rows on an event, so the form edits the owned
+    // row matching the typed name — or the first one when the field is empty.
+    var typed = form.elements.name.value.trim().replace(/\s+/g, " ").toLowerCase();
+    var mine = null;
+    owned.forEach(function (r) {
+      if (!mine && r.name.toLowerCase() === typed) mine = r;
+    });
+    if (!mine && !typed) mine = owned[0] || null;
     if (!mine) {
       // Undo an earlier prefill (e.g. after removing the RSVP), but never
       // clobber a name the visitor typed themselves.
@@ -156,16 +164,14 @@
       return;
     }
     if (!form.elements.name.value) form.elements.name.value = mine.name;
-    if (form.elements.name.value === mine.name) {
-      // Only fill response/party_size the first time this row appears —
-      // a later refresh must not revert choices typed but not yet submitted.
-      if (form.dataset.prefilled !== mine.name) {
-        form.elements.response.value = mine.response;
-        form.elements.party_size.value = mine.party_size;
-      }
-      form.dataset.prefilled = mine.name;
-      form.querySelector('button[type="submit"]').textContent = "Update RSVP";
+    // Only fill response/party_size the first time this row appears —
+    // a later refresh must not revert choices typed but not yet submitted.
+    if (form.dataset.prefilled !== mine.name) {
+      form.elements.response.value = mine.response;
+      form.elements.party_size.value = mine.party_size;
     }
+    form.dataset.prefilled = mine.name;
+    form.querySelector('button[type="submit"]').textContent = "Update RSVP";
   }
 
   function refresh() {
