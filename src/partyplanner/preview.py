@@ -187,11 +187,14 @@ class PreviewStore:
         with self._lock:
             existing = self.rsvps.get((event_id, name.casefold()))
             owner_key = existing["edit_key"] if existing else None
-            if owner_key and owner_key != me and not admin:
+            # Only the row's owner key or the host may touch an existing row;
+            # a keyless (host-entered) row is host-only. The message is the
+            # same either way so it doesn't reveal whether a row is
+            # host-entered.
+            if existing is not None and not admin and (not owner_key or owner_key != me):
                 raise PreviewForbidden(
                     "that name already has an RSVP here — use your private edit link to change it"
                 )
-            # Admin edits never claim a row: a keyless row stays claimable by its owner.
             # A supplied key binds to a new row only if this occasion minted it;
             # anything else gets a fresh mint, recorded so the key stays
             # honored even after its last row is removed.

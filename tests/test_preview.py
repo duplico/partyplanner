@@ -205,15 +205,21 @@ def test_store_admin_key_edits_anyone_and_flags_state():
     assert store.state(TOKEN)["admin"] is False
 
 
-def test_store_admin_created_row_stays_claimable():
+def test_store_admin_created_row_is_host_only():
     store = PreviewStore(_occasion(admin_key=ADMIN_KEY))
     result = store.rsvp(
         {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes", "me": ADMIN_KEY}
     )
     assert "me" not in result
-    claimed = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "maybe"})
-    assert TOKEN_RE.match(claimed["me"])
-    assert store.state(TOKEN, me=claimed["me"])["events"]["a"][0]["mine"] is True
+    with pytest.raises(PreviewForbidden, match="private edit link"):
+        store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "maybe"})
+    assert store.state(TOKEN)["events"]["a"][0]["response"] == "yes"
+    edited = store.rsvp(
+        {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "no", "me": ADMIN_KEY}
+    )
+    assert "me" not in edited
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "remove": True, "me": ADMIN_KEY})
+    assert store.state(TOKEN)["events"]["a"] == []
 
 
 def test_store_excludes_rsvp_none_events():

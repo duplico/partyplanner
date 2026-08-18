@@ -175,8 +175,8 @@ class FakeTable:
     def _check_condition(self, row, condition, values):
         if condition is None:
             return
-        if condition == "attribute_not_exists(edit_key)":
-            if row is not None and "edit_key" in row:
+        if condition == "attribute_not_exists(pk)":
+            if row is not None:
                 raise self._condition_failed()
         elif condition == "edit_key = :owner":
             if row is None or row.get("edit_key") != values[":owner"]:
@@ -330,33 +330,30 @@ def test_put_rsvp_rejects_wrong_or_missing_key(monkeypatch):
     assert table.rows[("EVENT#bbq", "NAME#aaron")]["response"] == "yes"
 
 
-def test_put_rsvp_claims_legacy_row_without_edit_key(monkeypatch):
+def test_keyless_row_is_host_only(monkeypatch):
     table = FakeTable(
-        links=LINKS,
+        links={**LINKS, f"ADMIN#{ADMIN_KEY}": {"sk": "META"}},
         rsvps={"EVENT#bbq": [{"name": "Aaron", "response": "maybe", "party_size": 0}]},
     )
     monkeypatch.setattr(handler, "table", lambda: table)
-    result = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
-    assert handler.TOKEN_RE.match(result["me"])
-    assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == result["me"]
+    with pytest.raises(handler.Forbidden, match="private edit link"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["response"] == "maybe"
+    handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=ADMIN_KEY)))
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["response"] == "no"
+    assert "edit_key" not in table.rows[("EVENT#bbq", "NAME#aaron")]
 
 
-def test_unknown_key_never_binds_to_new_or_keyless_row(monkeypatch):
+def test_unknown_key_never_binds_to_new_row(monkeypatch):
     # keys are only ever server-minted: a client-chosen key (including a
     # minted-but-unsynced admin key) never becomes a row's edit key
-    table = FakeTable(
-        links=LINKS,
-        rsvps={"EVENT#bbq": [{"name": "Sam", "response": "maybe", "party_size": 0}]},
-    )
+    table = FakeTable(links=LINKS)
     monkeypatch.setattr(handler, "table", lambda: table)
     chosen = "strangerchosenkey222"
     fresh = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(me=chosen)))
     assert fresh["me"] != chosen
     assert handler.TOKEN_RE.match(fresh["me"])
     assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == fresh["me"]
-    claimed = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="Sam", me=chosen)))
-    assert claimed["me"] != chosen
-    assert table.rows[("EVENT#bbq", "NAME#sam")]["edit_key"] == claimed["me"]
 
 
 def test_admin_key_edits_and_removes_any_row(monkeypatch):
@@ -371,7 +368,7 @@ def test_admin_key_edits_and_removes_any_row(monkeypatch):
     assert ("EVENT#bbq", "NAME#aaron") not in table.rows
 
 
-def test_admin_write_does_not_claim_keyless_row(monkeypatch):
+def test_admin_write_never_binds_a_key(monkeypatch):
     table = FakeTable(
         links={**LINKS, f"ADMIN#{ADMIN_KEY}": {"sk": "META"}},
         rsvps={"EVENT#bbq": [{"name": "Aaron", "response": "maybe", "party_size": 0}]},
@@ -380,9 +377,9 @@ def test_admin_write_does_not_claim_keyless_row(monkeypatch):
     result = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=ADMIN_KEY)))
     assert "me" not in result
     assert "edit_key" not in table.rows[("EVENT#bbq", "NAME#aaron")]
-    # the guest's own next write still claims the row
-    claimed = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
-    assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == claimed["me"]
+    created = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="Sam", me=ADMIN_KEY)))
+    assert "me" not in created
+    assert "edit_key" not in table.rows[("EVENT#bbq", "NAME#sam")]
 
 
 def test_put_rsvp_lost_race_maps_to_forbidden(monkeypatch):
