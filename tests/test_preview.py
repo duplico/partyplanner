@@ -102,6 +102,25 @@ def test_store_rsvp_upserts_and_suppresses_prefill():
     assert store.state(TOKEN, me=first["me"])["events"]["a"][0]["mine"] is True
 
 
+def test_store_rsvp_cap_and_truncated_state():
+    admin = "fixtureadminkey22222"
+    store = PreviewStore(_occasion(max_rsvps_per_event=2, admin_key=admin))
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "One", "response": "yes"})
+    two = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Two", "response": "yes"})
+    with pytest.raises(PreviewError, match="full"):
+        store.rsvp({"token": TOKEN, "event_id": "a", "name": "Three", "response": "yes"})
+    # A row owner may go one over (a rename in flight); the host isn't capped.
+    store.rsvp(
+        {"token": TOKEN, "event_id": "a", "name": "Two B", "response": "yes", "me": two["me"]}
+    )
+    store.rsvp(
+        {"token": TOKEN, "event_id": "a", "name": "Host Add", "response": "yes", "me": admin}
+    )
+    state = store.state(TOKEN)
+    assert len(state["events"]["a"]) == 2
+    assert state["more"]["a"] == 2
+
+
 def test_store_rsvp_enforces_scope_and_validation():
     store = PreviewStore(_occasion())
     with pytest.raises(PreviewError, match="cannot RSVP"):

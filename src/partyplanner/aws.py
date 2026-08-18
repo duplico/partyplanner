@@ -37,6 +37,14 @@ def link_items(occasion: Occasion) -> list[dict]:
         if expires:
             item["expires_at"] = expires
         items.append(item)
+    config = {
+        "pk": "CONFIG#OCCASION",
+        "sk": "META",
+        "max_rsvps_per_event": occasion.max_rsvps_per_event,
+    }
+    if expires:
+        config["expires_at"] = expires
+    items.append(config)
     return items
 
 

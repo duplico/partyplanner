@@ -10,6 +10,7 @@ admin key — can change or remove it. Keyless rows (host-entered, or written
 before edit keys existed) are host-only; admin writes never bind a key.
 
 Table layout (single table, on-demand):
+  CONFIG#OCCASION / META  max_rsvps_per_event, expires_at?  (synced by sync-links)
   LINK#<token> / META   rsvp_events, prefill_name?, expires_at?
   ADMIN#<key> / META    expires_at?  (host key: edit or remove any RSVP)
   KEY#<edit_key> / META expires_at?  (written at mint; outlives the rows the
@@ -36,6 +37,7 @@ RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
 MAX_PARTY = 10
 MAX_BODY = 2048
+DEFAULT_MAX_EVENT_RSVPS = 200
 
 _table = None
 
@@ -144,6 +146,65 @@ def get_link(token: str) -> dict | None:
     return item
 
 
+def max_event_rsvps() -> int:
+    """Occasion-configured cap on RSVP rows per event.
+
+    Strongly consistent so a just-lowered cap takes effect immediately
+    after sync-links.
+    """
+    item = (
+        table()
+        .get_item(Key={"pk": "CONFIG#OCCASION", "sk": "META"}, ConsistentRead=True)
+        .get("Item")
+    )
+    if item is None:
+        return DEFAULT_MAX_EVENT_RSVPS
+    return int(item.get("max_rsvps_per_event", DEFAULT_MAX_EVENT_RSVPS))
+
+
+def event_rows(event_id: str, limit: int, consistent: bool = False) -> list[dict]:
+    """Up to `limit` NAME# rows for an event, bounding work per request.
+
+    `consistent` is for limit enforcement; display reads tolerate staleness.
+    """
+    items: list[dict] = []
+    kwargs = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
+        "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
+        "Limit": limit,
+        "ConsistentRead": consistent,
+    }
+    while len(items) < limit:
+        page = table().query(**kwargs)
+        items.extend(page["Items"])
+        if "LastEvaluatedKey" not in page:
+            break
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+        kwargs["Limit"] = limit - len(items)
+    return items[:limit]
+
+
+def event_row_count(event_id: str, max_pages: int = 5) -> int:
+    """Total NAME# rows for an event, counted without loading items.
+
+    COUNT pages carry no item data, so a small page bound covers tens of
+    thousands of rows while keeping the work per request bounded.
+    """
+    total = 0
+    kwargs = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
+        "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
+        "Select": "COUNT",
+    }
+    for _ in range(max_pages):
+        page = table().query(**kwargs)
+        total += page["Count"]
+        if "LastEvaluatedKey" not in page:
+            break
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+    return total
+
+
 def get_state(token: str, me: str = "") -> dict:
     link = get_link(token)
     if link is None:
@@ -155,19 +216,10 @@ def get_state(token: str, me: str = "") -> dict:
     # in this link's scope (disjoint-scope links, or all rows removed).
     known = admin or (bool(me) and key_is_minted(me))
     events: dict[str, list[dict]] = {}
+    more: dict[str, int] = {}
     prefill = link.get("prefill_name")
+    cap = max_event_rsvps()
     for event_id in link.get("rsvp_events", []):
-        items = []
-        kwargs = {
-            "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
-            "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
-        }
-        while True:
-            page = table().query(**kwargs)
-            items.extend(page["Items"])
-            if "LastEvaluatedKey" not in page:
-                break
-            kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
         rows = [
             {
                 "name": item["name"],
@@ -175,13 +227,19 @@ def get_state(token: str, me: str = "") -> dict:
                 "party_size": int(item["party_size"]),
                 "mine": bool(me) and item.get("edit_key") == me,
             }
-            for item in items
+            for item in event_rows(event_id, cap)
         ]
+        # Host-entered rows can exceed the cap; tell the client how many
+        # names the truncated list is hiding.
+        if len(rows) >= cap:
+            hidden = event_row_count(event_id) - cap
+            if hidden > 0:
+                more[event_id] = hidden
         rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
         events[event_id] = rows
         if prefill and any(r["name"].casefold() == str(prefill).casefold() for r in rows):
             prefill = None
-    return {"events": events, "prefill": prefill, "admin": admin, "known": known}
+    return {"events": events, "more": more, "prefill": prefill, "admin": admin, "known": known}
 
 
 def put_rsvp(rsvp: dict) -> dict:
@@ -217,6 +275,15 @@ def put_rsvp(rsvp: dict) -> dict:
         raise Forbidden(
             "that name already has an RSVP here — use your private edit link to change it"
         )
+    # The cap doesn't bind the host, and a key that already owns a row here
+    # may exceed it by one so a rename (create-then-remove) works at a full
+    # event without letting any one key grow the list unboundedly.
+    if existing is None and not admin:
+        cap = max_event_rsvps()
+        rows = event_rows(rsvp["event_id"], cap + 1, consistent=True)
+        allowance = 1 if me and any(r.get("edit_key") == me for r in rows) else 0
+        if len(rows) >= cap + allowance:
+            raise BadRequest("this event's RSVP list is full")
     # A supplied key binds to a new row only if this occasion minted it;
     # anything else gets a fresh mint, recorded so the key stays honored
     # even after its last row is removed.

@@ -104,6 +104,7 @@ class PreviewStore:
 
     def update(self, occasion: Occasion) -> None:
         """Swap in the occasion's current links/admin key, keeping RSVPs."""
+        self.max_event_rsvps = occasion.max_rsvps_per_event
         items = link_items(occasion)
         self.links = {
             item["pk"].removeprefix("LINK#"): item
@@ -121,6 +122,7 @@ class PreviewStore:
         with self._lock:
             snapshot = [(eid, dict(row)) for (eid, _), row in self.rsvps.items()]
         events: dict[str, list[dict]] = {}
+        more: dict[str, int] = {}
         prefill = link.get("prefill_name")
         for event_id in link["rsvp_events"]:
             rows = [
@@ -133,6 +135,13 @@ class PreviewStore:
                 for eid, row in snapshot
                 if eid == event_id
             ]
+            # Match the Lambda's truncation: rows arrive in sort-key order
+            # (casefolded name), capped, then sorted for display. Host-entered
+            # rows can exceed the cap; report how many names are hidden.
+            rows.sort(key=lambda r: r["name"].casefold())
+            if len(rows) > self.max_event_rsvps:
+                more[event_id] = len(rows) - self.max_event_rsvps
+            del rows[self.max_event_rsvps :]
             rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
             events[event_id] = rows
             if prefill and any(r["name"].casefold() == prefill.casefold() for r in rows):
@@ -141,7 +150,7 @@ class PreviewStore:
         # Occasion-wide: a key can be known here even when none of its rows are
         # in this link's scope (disjoint-scope links, or all rows removed).
         known = admin or (bool(me) and me in self.minted_keys)
-        return {"events": events, "prefill": prefill, "admin": admin, "known": known}
+        return {"events": events, "more": more, "prefill": prefill, "admin": admin, "known": known}
 
     def rsvp(self, body: dict) -> dict:
         token = body.get("token")
@@ -195,6 +204,14 @@ class PreviewStore:
                 raise PreviewForbidden(
                     "that name already has an RSVP here — use your private edit link to change it"
                 )
+            # The cap doesn't bind the host, and a key that already owns a
+            # row here may exceed it by one so a rename (create-then-remove)
+            # works at a full event.
+            if existing is None and not admin:
+                rows = [row for (eid, _), row in self.rsvps.items() if eid == event_id]
+                allowance = 1 if me and any(row["edit_key"] == me for row in rows) else 0
+                if len(rows) >= self.max_event_rsvps + allowance:
+                    raise PreviewError("this event's RSVP list is full")
             # A supplied key binds to a new row only if this occasion minted it;
             # anything else gets a fresh mint, recorded so the key stays
             # honored even after its last row is removed.
