@@ -107,6 +107,15 @@ def test_link_items_admin_key():
     assert admin["expires_at"] > 1_700_000_000
 
 
+def test_link_items_occasion_config():
+    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    items = {item["pk"]: item for item in link_items(occasion)}
+    cfg = items["CONFIG#OCCASION"]
+    assert cfg["sk"] == "META"
+    assert cfg["max_rsvps_per_event"] == occasion.max_rsvps_per_event
+    assert cfg["expires_at"] > 1_700_000_000
+
+
 def test_link_items_allhallowtide():
     occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
     items = {item["pk"]: item for item in link_items(occasion)}
