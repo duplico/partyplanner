@@ -92,9 +92,12 @@ invariant here is a bug, and any proposed change should be checked against it.
   revocation short of re-minting (links) or rotating the admin key.
 - **Keys in URLs.** `?me=` bookmarks live in browser history and sync'd
   bookmark stores. Mitigated by the share warning and referrer policy;
-  accepted for the bookmarkability it buys. Opening someone else's edit link
-  acts with their key for that visit only — it never replaces a key this
-  browser already saved. That includes creation: a new RSVP made during such
+  accepted for the bookmarkability it buys. In a browser that already holds
+  its own key, opening someone else's edit link acts with their key for that
+  visit only — it never replaces the saved key. A browser with no key of its
+  own adopts a vetted URL key permanently; that is what makes a bookmark
+  portable to a new device, and the client cannot tell an owner's new device
+  from a borrower. That includes creation: a new RSVP made during such
   a visit binds to the lender's key (the lender controls it; the visitor's
   own key never can), the same "you are that identity for the visit"
   semantics as shared devices. The remedy is the same too: the host deletes
