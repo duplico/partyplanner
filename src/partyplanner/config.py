@@ -154,6 +154,14 @@ class Occasion(BaseModel):
     scopes: dict[str, list[str]] = Field(default_factory=dict)
     links: list[Link] = Field(default_factory=list)
     revoked: list[str] = Field(default_factory=list)
+    admin_key: str | None = None
+
+    @field_validator("admin_key")
+    @classmethod
+    def _check_admin_key(cls, v: str | None) -> str | None:
+        if v is not None and not TOKEN_RE.match(v):
+            raise ValueError(f"admin_key {v!r} is not lowercase base32 of 16-64 chars")
+        return v
 
     @field_validator("domain")
     @classmethod
@@ -212,6 +220,8 @@ class Occasion(BaseModel):
         tokens = [link.token for link in self.links if link.token is not None]
         if len(set(tokens)) != len(tokens):
             raise ValueError("duplicate link tokens")
+        if self.admin_key is not None and self.admin_key in tokens:
+            raise ValueError("admin_key collides with a link token")
         return self
 
     @property
@@ -271,9 +281,11 @@ def parse(data: CommentedMap, path: Path | None = None) -> Occasion:
 
 def _load_links_raw(path: Path) -> CommentedMap:
     data = load_raw(path)
-    unknown = set(data.keys()) - {"links", "revoked"}
+    unknown = set(data.keys()) - {"links", "revoked", "admin_key"}
     if unknown:
-        raise ConfigError(f"{path}: unexpected keys {sorted(unknown)}; only links/revoked allowed")
+        raise ConfigError(
+            f"{path}: unexpected keys {sorted(unknown)}; only links/revoked/admin_key allowed"
+        )
     return data
 
 
@@ -286,6 +298,8 @@ def merged_raw(path: Path) -> CommentedMap:
         for key in ("links", "revoked"):
             if extra.get(key):
                 data[key] = list(data.get(key) or []) + list(extra[key])
+        if extra.get("admin_key") and not data.get("admin_key"):
+            data["admin_key"] = extra["admin_key"]
     return data
 
 
@@ -335,6 +349,34 @@ def add_link(
             links_path.write_text(original)
         raise
     return link
+
+
+def ensure_admin_key(config_path: Path) -> tuple[str, bool]:
+    """The occasion's admin key, minting one into the links file if absent.
+
+    Returns (key, minted): `minted` is True when a new key was written.
+    """
+    occasion = load(config_path)
+    if occasion.admin_key is not None:
+        return occasion.admin_key, False
+    links_path = config_path.parent / LINKS_FILENAME
+    data = _load_links_raw(links_path) if links_path.exists() else CommentedMap()
+    if not links_path.exists():
+        data.yaml_set_start_comment(LINKS_HEADER)
+    key = mint_token()
+    data["admin_key"] = key
+    original = links_path.read_text() if links_path.exists() else None
+    with links_path.open("w") as f:
+        yaml.dump(data, f)
+    try:
+        load(config_path)  # re-validate the merged result
+    except ConfigError:
+        if original is None:
+            links_path.unlink()
+        else:
+            links_path.write_text(original)
+        raise
+    return key, True
 
 
 def revoke_link(config_path: Path, token: str) -> None:

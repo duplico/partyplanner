@@ -82,6 +82,39 @@ def test_add_link_creates_file_and_appends(tmp_path: Path):
     config.require_complete(occasion)
 
 
+def test_load_merges_admin_key_from_links_file(tmp_path: Path):
+    src = _config(tmp_path)
+    (tmp_path / LINKS_FILENAME).write_text("admin_key: fixtureadminkey22222\n")
+    assert config.load(src).admin_key == "fixtureadminkey22222"
+
+
+def test_admin_key_collision_with_link_token_rejected(tmp_path: Path):
+    src = _config(tmp_path, BASE + "links:\n  - token: fixtureadminkey22222\n")
+    (tmp_path / LINKS_FILENAME).write_text("admin_key: fixtureadminkey22222\n")
+    with pytest.raises(ConfigError, match="collides"):
+        config.load(src)
+
+
+def test_ensure_admin_key_mints_once(tmp_path: Path):
+    src = _config(tmp_path)
+    key, minted = config.ensure_admin_key(src)
+    assert minted
+    assert config.load(src).admin_key == key
+    again, minted_again = config.ensure_admin_key(src)
+    assert again == key
+    assert not minted_again
+    assert src.read_text() == BASE  # occasion.yaml untouched
+
+
+def test_ensure_admin_key_preserves_existing_links(tmp_path: Path):
+    src = _config(tmp_path)
+    link = config.add_link(src, "all", note="group chat")
+    key, _ = config.ensure_admin_key(src)
+    occasion = config.load(src)
+    assert [x.token for x in occasion.links] == [link.token]
+    assert occasion.admin_key == key
+
+
 def test_add_link_explicit_event_ids(tmp_path: Path):
     src = _config(tmp_path)
     config.add_link(src, ["bonfire"])

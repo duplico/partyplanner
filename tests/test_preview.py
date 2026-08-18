@@ -10,6 +10,7 @@ import pytest
 from partyplanner import config
 from partyplanner.preview import (
     PreviewError,
+    PreviewForbidden,
     PreviewStore,
     Reloader,
     ReloadState,
@@ -54,7 +55,10 @@ def test_completed_fills_ids_and_tokens_without_touching_complete_ones():
     assert [e.id for e in done.events] == ["a", "big-party"]
     assert done.links[0].token == TOKEN
     assert TOKEN_RE.match(done.links[1].token)
-    assert notes == ["unminted link 'new': using a preview-only token"]
+    assert notes == [
+        "unminted link 'new': using a preview-only token",
+        "no admin key: using a preview-only one",
+    ]
 
 
 def test_completed_adds_a_link_when_config_has_none():
@@ -62,7 +66,10 @@ def test_completed_adds_a_link_when_config_has_none():
     assert len(done.links) == 1
     assert TOKEN_RE.match(done.links[0].token)
     assert done.resolve_scope(done.links[0]) == ("a", "b")
-    assert notes == ["no links in config: added a preview-only link with scope `all`"]
+    assert notes == [
+        "no links in config: added a preview-only link with scope `all`",
+        "no admin key: using a preview-only one",
+    ]
 
 
 def test_store_state_scope_and_prefill():
@@ -77,11 +84,22 @@ def test_store_state_scope_and_prefill():
 
 def test_store_rsvp_upserts_and_suppresses_prefill():
     store = PreviewStore(_occasion())
-    store.rsvp({"token": TOKEN, "event_id": "a", "name": "  pat ", "response": "maybe"})
-    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes", "party_size": 2})
+    first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "  pat ", "response": "maybe"})
+    assert TOKEN_RE.match(first["me"])
+    store.rsvp(
+        {
+            "token": TOKEN,
+            "event_id": "a",
+            "name": "Pat",
+            "response": "yes",
+            "party_size": 2,
+            "me": first["me"],
+        }
+    )
     rows = store.state(TOKEN)["events"]["a"]
-    assert rows == [{"name": "Pat", "response": "yes", "party_size": 2}]
+    assert rows == [{"name": "Pat", "response": "yes", "party_size": 2, "mine": False}]
     assert store.state(TOKEN)["prefill"] is None
+    assert store.state(TOKEN, me=first["me"])["events"]["a"][0]["mine"] is True
 
 
 def test_store_rsvp_enforces_scope_and_validation():
@@ -96,6 +114,60 @@ def test_store_rsvp_enforces_scope_and_validation():
         )
     with pytest.raises(PreviewError, match="name"):
         store.rsvp({"token": TOKEN, "event_id": "a", "name": "", "response": "yes"})
+
+
+ADMIN_KEY = "fixtureadminkey22222"
+
+
+def test_store_edit_key_protects_existing_rsvps():
+    store = PreviewStore(_occasion())
+    first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})
+    with pytest.raises(PreviewForbidden, match="private edit link"):
+        store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "no"})
+    other = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Sam", "response": "yes"})
+    assert other["me"] != first["me"]
+    with pytest.raises(PreviewForbidden, match="private edit link"):
+        store.rsvp(
+            {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "no", "me": other["me"]}
+        )
+
+
+def test_store_edit_key_spans_events():
+    store = PreviewStore(_occasion())
+    first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})
+    second = store.rsvp(
+        {"token": TOKEN, "event_id": "b", "name": "Pat", "response": "maybe", "me": first["me"]}
+    )
+    assert second["me"] == first["me"]
+    state = store.state(TOKEN, me=first["me"])
+    assert state["events"]["a"][0]["mine"] is True
+    assert state["events"]["b"][0]["mine"] is True
+
+
+def test_store_remove_requires_owner_or_admin():
+    store = PreviewStore(_occasion(admin_key=ADMIN_KEY))
+    first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})
+    with pytest.raises(PreviewForbidden, match="remove"):
+        store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "remove": True})
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "remove": True, "me": first["me"]})
+    assert store.state(TOKEN)["events"]["a"] == []
+
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Sam", "response": "yes"})
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Sam", "remove": True, "me": ADMIN_KEY})
+    assert store.state(TOKEN)["events"]["a"] == []
+
+
+def test_store_admin_key_edits_anyone_and_flags_state():
+    store = PreviewStore(_occasion(admin_key=ADMIN_KEY))
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})
+    result = store.rsvp(
+        {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "no", "me": ADMIN_KEY}
+    )
+    assert result["me"] != ADMIN_KEY  # the row keeps its own edit key
+    state = store.state(TOKEN, me=ADMIN_KEY)
+    assert state["admin"] is True
+    assert state["events"]["a"][0]["response"] == "no"
+    assert store.state(TOKEN)["admin"] is False
 
 
 def test_store_excludes_rsvp_none_events():
@@ -114,6 +186,14 @@ def test_preview_urls_lists_landing_and_every_link():
     assert urls[0] == ("landing page", "http://127.0.0.1:1234/")
     assert urls[1] == ("Pat (scope: all)", f"http://127.0.0.1:1234/i/{TOKEN}/")
     assert urls[2] == ("link #2 (scope: b)", f"http://127.0.0.1:1234/i/{PARTY_TOKEN}/")
+
+
+def test_preview_urls_include_admin_view():
+    urls = preview_urls(_occasion(admin_key=ADMIN_KEY), "http://127.0.0.1:1234")
+    assert urls[-1] == (
+        "admin view (edit/remove any RSVP)",
+        f"http://127.0.0.1:1234/i/{TOKEN}/?me={ADMIN_KEY}",
+    )
 
 
 def test_server_binds_requested_host(tmp_path: Path):
@@ -149,10 +229,18 @@ def test_server_serves_site_and_api_end_to_end(tmp_path: Path):
         req = urllib.request.Request(
             f"{base}/api/rsvp", data=body, headers={"Content-Type": "application/json"}
         )
-        assert json.load(urllib.request.urlopen(req)) == {"ok": True}
+        result = json.load(urllib.request.urlopen(req))
+        assert result["ok"] is True
+        assert TOKEN_RE.match(result["me"])
 
         state = json.load(urllib.request.urlopen(f"{base}/api/state?t={TOKEN}"))
-        assert state["events"]["a"] == [{"name": "Sam", "response": "yes", "party_size": 1}]
+        assert state["events"]["a"] == [
+            {"name": "Sam", "response": "yes", "party_size": 1, "mine": False}
+        ]
+        assert state["admin"] is False
+
+        state = json.load(urllib.request.urlopen(f"{base}/api/state?t={TOKEN}&me={result['me']}"))
+        assert state["events"]["a"][0]["mine"] is True
 
         with pytest.raises(HTTPError) as err:
             urllib.request.urlopen(f"{base}/api/state?t=nosuchtokenatall22")
@@ -226,7 +314,7 @@ def test_reload_serves_fresh_site_and_bumps_version(tmp_path: Path):
         assert json.load(urllib.request.urlopen(f"{base}/__preview__/version")) == {"version": 1}
         # RSVPs survive the reload
         assert store.state(TOKEN)["events"]["a"] == [
-            {"name": "Sam", "response": "yes", "party_size": 0}
+            {"name": "Sam", "response": "yes", "party_size": 0, "mine": False}
         ]
     finally:
         server.shutdown()

@@ -20,6 +20,22 @@ def test_parse_rsvp_ok():
     parsed = handler.parse_rsvp(_rsvp_body(name="  Aaron   B "))
     assert parsed["name"] == "Aaron B"
     assert parsed["party_size"] == 2
+    assert parsed["me"] is None
+    assert parsed["remove"] is False
+
+
+def test_parse_rsvp_remove_skips_response_fields():
+    parsed = handler.parse_rsvp(
+        {
+            "token": "fixturebbqgroupchat2",
+            "event_id": "bbq",
+            "name": "Aaron",
+            "me": "fixtureeditkey222222",
+            "remove": True,
+        }
+    )
+    assert parsed["remove"] is True
+    assert parsed["me"] == "fixtureeditkey222222"
 
 
 @pytest.mark.parametrize(
@@ -38,6 +54,9 @@ def test_parse_rsvp_ok():
         {"party_size": 11},
         {"party_size": "2"},
         {"party_size": True},
+        {"me": "SHOUTING-NOT-A-KEY"},
+        {"me": 42},
+        {"remove": "yes"},
     ],
 )
 def test_parse_rsvp_rejects(overrides):
@@ -55,7 +74,7 @@ def _event(method, path, body=None, query=None):
 
 
 def test_handler_routes_state(monkeypatch):
-    monkeypatch.setattr(handler, "get_state", lambda token: {"events": {}, "prefill": None})
+    monkeypatch.setattr(handler, "get_state", lambda token, me: {"events": {}, "prefill": None})
     result = handler.lambda_handler(_event("GET", "/api/state", query={"t": "sometoken"}), None)
     assert result["statusCode"] == 200
     assert json.loads(result["body"]) == {"events": {}, "prefill": None}
@@ -65,10 +84,26 @@ def test_handler_routes_state(monkeypatch):
 
 def test_handler_routes_rsvp(monkeypatch):
     captured = {}
-    monkeypatch.setattr(handler, "put_rsvp", captured.update)
+
+    def fake_put(rsvp):
+        captured.update(rsvp)
+        return {"ok": True, "me": "fixtureeditkey222222"}
+
+    monkeypatch.setattr(handler, "put_rsvp", fake_put)
     result = handler.lambda_handler(_event("POST", "/api/rsvp", body=_rsvp_body()), None)
     assert result["statusCode"] == 200
     assert captured["name"] == "Aaron"
+    assert json.loads(result["body"])["me"] == "fixtureeditkey222222"
+
+
+def test_handler_forbidden_is_403(monkeypatch):
+    def fake_put(rsvp):
+        raise handler.Forbidden("nope")
+
+    monkeypatch.setattr(handler, "put_rsvp", fake_put)
+    result = handler.lambda_handler(_event("POST", "/api/rsvp", body=_rsvp_body()), None)
+    assert result["statusCode"] == 403
+    assert json.loads(result["body"]) == {"error": "nope"}
 
 
 def test_handler_bad_json():
@@ -101,11 +136,20 @@ class FakeTable:
     def __init__(self, links=None, rsvps=None):
         self.links = links or {}
         self.rsvps = rsvps or {}
+        self.rows = {}
+        for pk, items in self.rsvps.items():
+            for item in items:
+                self.rows[(pk, "NAME#" + item["name"].casefold())] = item
         self.updates = []
+        self.deletes = []
+        self.consistent_reads = []
 
     def get_item(self, Key, ConsistentRead=False):
-        self.consistent_reads = getattr(self, "consistent_reads", []) + [ConsistentRead]
-        item = self.links.get(Key["pk"])
+        self.consistent_reads.append(ConsistentRead)
+        if Key["sk"] == "META":
+            item = self.links.get(Key["pk"])
+        else:
+            item = self.rows.get((Key["pk"], Key["sk"]))
         return {"Item": item} if item else {}
 
     def query(self, KeyConditionExpression, ExpressionAttributeValues):
@@ -114,6 +158,21 @@ class FakeTable:
 
     def update_item(self, **kwargs):
         self.updates.append(kwargs)
+        values = kwargs["ExpressionAttributeValues"]
+        key = (kwargs["Key"]["pk"], kwargs["Key"]["sk"])
+        row = self.rows.setdefault(key, {"created_at": values[":now"]})
+        row.update(
+            {
+                "name": values[":name"],
+                "response": values[":response"],
+                "party_size": values[":party_size"],
+                "edit_key": values[":edit_key"],
+            }
+        )
+
+    def delete_item(self, Key):
+        self.deletes.append(Key)
+        self.rows.pop((Key["pk"], Key["sk"]), None)
 
 
 class PagingTable(FakeTable):
@@ -138,6 +197,7 @@ def test_get_state_follows_pagination(monkeypatch):
     monkeypatch.setattr(handler, "table", lambda: table)
     state = handler.get_state("fixturebbqgroupchat2")
     assert [r["name"] for r in state["events"]["bbq"]] == ["aaron", "chance"]
+    assert state["admin"] is False
 
 
 def test_get_state_prefill_suppressed_after_rsvp(monkeypatch):
@@ -186,3 +246,84 @@ def test_put_rsvp_writes_ttl(monkeypatch):
     (update,) = table.updates
     assert update["Key"] == {"pk": "EVENT#bbq", "sk": "NAME#aaron"}
     assert update["ExpressionAttributeValues"][":expires"] == 1234567890
+
+
+LINKS = {"LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq", "pool"]}}
+ADMIN_KEY = "fixtureadminkey22222"
+
+
+def test_put_rsvp_mints_and_reuses_edit_key(monkeypatch):
+    table = FakeTable(links=LINKS)
+    monkeypatch.setattr(handler, "table", lambda: table)
+    first = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    assert handler.TOKEN_RE.match(first["me"])
+    # the owner's key updates the row and spans other events under the link
+    same = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=first["me"])))
+    assert same["me"] == first["me"]
+    other_event = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(event_id="pool", me=first["me"])))
+    assert other_event["me"] == first["me"]
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["response"] == "no"
+
+
+def test_put_rsvp_rejects_wrong_or_missing_key(monkeypatch):
+    table = FakeTable(links=LINKS)
+    monkeypatch.setattr(handler, "table", lambda: table)
+    handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    with pytest.raises(handler.Forbidden, match="private edit link"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no")))
+    stranger = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="Sam")))
+    with pytest.raises(handler.Forbidden, match="private edit link"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=stranger["me"])))
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["response"] == "yes"
+
+
+def test_put_rsvp_claims_legacy_row_without_edit_key(monkeypatch):
+    table = FakeTable(
+        links=LINKS,
+        rsvps={"EVENT#bbq": [{"name": "Aaron", "response": "maybe", "party_size": 0}]},
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    result = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    assert handler.TOKEN_RE.match(result["me"])
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == result["me"]
+
+
+def test_admin_key_edits_and_removes_any_row(monkeypatch):
+    table = FakeTable(links={**LINKS, f"ADMIN#{ADMIN_KEY}": {"sk": "META"}})
+    monkeypatch.setattr(handler, "table", lambda: table)
+    owner = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    edited = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=ADMIN_KEY)))
+    assert edited["me"] == owner["me"]  # the row keeps the owner's key
+    handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True, me=ADMIN_KEY)))
+    assert table.deletes == [{"pk": "EVENT#bbq", "sk": "NAME#aaron"}]
+    assert ("EVENT#bbq", "NAME#aaron") not in table.rows
+
+
+def test_remove_requires_owner_key(monkeypatch):
+    table = FakeTable(links=LINKS)
+    monkeypatch.setattr(handler, "table", lambda: table)
+    owner = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    stranger = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="Sam")))
+    with pytest.raises(handler.Forbidden, match="remove"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True)))
+    with pytest.raises(handler.Forbidden, match="remove"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True, me=stranger["me"])))
+    handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True, me=owner["me"])))
+    assert ("EVENT#bbq", "NAME#aaron") not in table.rows
+
+
+def test_get_state_marks_mine_and_admin_without_leaking_keys(monkeypatch):
+    table = FakeTable(links={**LINKS, f"ADMIN#{ADMIN_KEY}": {"sk": "META"}})
+    monkeypatch.setattr(handler, "table", lambda: table)
+    owner = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    table.rsvps = {"EVENT#bbq": [table.rows[("EVENT#bbq", "NAME#aaron")]], "EVENT#pool": []}
+    state = handler.get_state("fixturebbqgroupchat2", owner["me"])
+    (row,) = state["events"]["bbq"]
+    assert row["mine"] is True
+    assert "edit_key" not in row
+    assert state["admin"] is False
+    admin_state = handler.get_state("fixturebbqgroupchat2", ADMIN_KEY)
+    assert admin_state["admin"] is True
+    assert admin_state["events"]["bbq"][0]["mine"] is False
+    anon_state = handler.get_state("fixturebbqgroupchat2")
+    assert anon_state["events"]["bbq"][0]["mine"] is False
