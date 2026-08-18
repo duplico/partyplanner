@@ -8,8 +8,10 @@
   var KEY_RE = /^[a-z2-7]{16,64}$/;
   var storageKey = "partyplanner-me";
   var me = "";
-  // A URL-supplied key is unvetted until a state response proves it's the
-  // visitor's (admin, or owns a row); until then it's never sent with writes.
+  // A URL-supplied key is unvetted until a state response proves the server
+  // knows it (admin, or a key this occasion minted — occasion-wide, so a
+  // bookmark works even on a link whose scope shows none of its rows);
+  // until then it's never sent with writes.
   var meVetted = true;
   var urlMe = new URLSearchParams(location.search).get("me") || "";
   if (KEY_RE.test(urlMe)) {
@@ -161,10 +163,7 @@
       .then(function (state) {
         isAdmin = !!state.admin;
         document.body.classList.toggle("admin", isAdmin);
-        var ownsARow = Object.keys(state.events).some(function (eventId) {
-          return state.events[eventId].some(function (r) { return r.mine; });
-        });
-        if (me && me === urlMe && !isAdmin && !ownsARow) {
+        if (me && me === urlMe && !isAdmin && !state.known) {
           dropUrlKey();
           return refresh();
         }

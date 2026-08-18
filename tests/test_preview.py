@@ -155,6 +155,30 @@ def test_store_unknown_key_never_binds_to_new_row():
     assert store.state(TOKEN, me=chosen)["events"]["a"][0]["mine"] is False
 
 
+def test_store_minted_key_survives_remove_then_rersvp():
+    # a bookmarked edit link keeps working after its last RSVP is removed
+    store = PreviewStore(_occasion())
+    first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "remove": True, "me": first["me"]})
+    again = store.rsvp(
+        {"token": TOKEN, "event_id": "a", "name": "Pat B", "response": "yes", "me": first["me"]}
+    )
+    assert again["me"] == first["me"]
+    assert store.state(TOKEN, me=first["me"])["events"]["a"][0]["mine"] is True
+
+
+def test_store_known_is_occasion_wide():
+    # minted keys vet on any link (even disjoint scope) and survive removal
+    store = PreviewStore(_occasion(admin_key=ADMIN_KEY))
+    first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})
+    assert store.state(PARTY_TOKEN, me=first["me"])["known"] is True
+    assert store.state(TOKEN, me=ADMIN_KEY)["known"] is True
+    assert store.state(TOKEN)["known"] is False
+    assert store.state(TOKEN, me="strangerchosenkey222")["known"] is False
+    store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "remove": True, "me": first["me"]})
+    assert store.state(TOKEN, me=first["me"])["known"] is True
+
+
 def test_store_remove_requires_owner_or_admin():
     store = PreviewStore(_occasion(admin_key=ADMIN_KEY))
     first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})

@@ -12,6 +12,9 @@ are claimed by the owner's first write (admin edits never claim a row).
 Table layout (single table, on-demand):
   LINK#<token> / META   rsvp_events, prefill_name?, expires_at?
   ADMIN#<key> / META    expires_at?  (host key: edit or remove any RSVP)
+  KEY#<edit_key> / META expires_at?  (written at mint; outlives the rows the
+                                      key owns, so a bookmark survives
+                                      remove-then-re-RSVP)
   EVENT#<id> / NAME#<name casefold>   name, response, party_size, edit_key,
                                       timestamps, via_token
 """
@@ -26,7 +29,6 @@ import re
 import secrets
 
 import boto3
-from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 
 TOKEN_RE = re.compile(r"^[a-z2-7]{16,64}\Z")
@@ -69,22 +71,14 @@ def mint_key() -> str:
     return base64.b32encode(secrets.token_bytes(12)).decode("ascii").rstrip("=").lower()
 
 
-def key_owns_a_row(me: str) -> bool:
-    """True if this key is already bound to an RSVP row in the occasion."""
-    kwargs: dict = {
-        "FilterExpression": Attr("edit_key").eq(me) & Attr("pk").begins_with("EVENT#"),
-        # Strongly consistent so a key minted by a just-committed first RSVP
-        # is recognized by an immediate second one.
-        "ConsistentRead": True,
-    }
-    while True:
-        page = table().scan(**kwargs)
-        if page.get("Items"):
-            return True
-        last = page.get("LastEvaluatedKey")
-        if not last:
-            return False
-        kwargs["ExclusiveStartKey"] = last
+def key_is_minted(me: str) -> bool:
+    """True if this key was minted in this occasion (KEY# record exists).
+
+    Strongly consistent so a key minted by a just-committed first RSVP is
+    recognized by an immediate second one.
+    """
+    item = table().get_item(Key={"pk": f"KEY#{me}", "sk": "META"}, ConsistentRead=True).get("Item")
+    return item is not None
 
 
 def is_admin(me: str | None) -> bool:
@@ -157,6 +151,9 @@ def get_state(token: str, me: str = "") -> dict:
     if me and not TOKEN_RE.match(me):
         me = ""
     admin = is_admin(me)
+    # Occasion-wide: a key can be known here even when none of its rows are
+    # in this link's scope (disjoint-scope links, or all rows removed).
+    known = admin or (bool(me) and key_is_minted(me))
     events: dict[str, list[dict]] = {}
     prefill = link.get("prefill_name")
     for event_id in link.get("rsvp_events", []):
@@ -184,7 +181,7 @@ def get_state(token: str, me: str = "") -> dict:
         events[event_id] = rows
         if prefill and any(r["name"].casefold() == str(prefill).casefold() for r in rows):
             prefill = None
-    return {"events": events, "prefill": prefill, "admin": admin}
+    return {"events": events, "prefill": prefill, "admin": admin, "known": known}
 
 
 def put_rsvp(rsvp: dict) -> dict:
@@ -218,14 +215,19 @@ def put_rsvp(rsvp: dict) -> dict:
             "that name already has an RSVP here — use your private edit link to change it"
         )
     # Admin edits never claim a row: a keyless row stays claimable by its owner.
-    # A supplied key binds to a new row only if the server minted it before
-    # (it already owns a row here); anything else gets a fresh mint.
+    # A supplied key binds to a new row only if this occasion minted it;
+    # anything else gets a fresh mint, recorded so the key stays honored
+    # even after its last row is removed.
     if admin or owner_key:
         edit_key = owner_key
-    elif me and key_owns_a_row(me):
+    elif me and key_is_minted(me):
         edit_key = me
     else:
         edit_key = mint_key()
+        record = {"pk": f"KEY#{edit_key}", "sk": "META"}
+        if "expires_at" in link:
+            record["expires_at"] = link["expires_at"]
+        table().put_item(Item=record)
     now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     update = (
         "SET #n = :name, #r = :response, party_size = :party_size, "

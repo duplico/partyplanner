@@ -96,6 +96,9 @@ class PreviewStore:
         self.links: dict[str, dict] = {}
         self.admin_keys: set[str] = set()
         self.rsvps: dict[tuple[str, str], dict] = {}
+        # Keys this preview minted; outlives their rows (like KEY# records
+        # in production), so a bookmark survives remove-then-re-RSVP.
+        self.minted_keys: set[str] = set()
         self._lock = threading.Lock()  # requests run in ThreadingHTTPServer threads
         self.update(occasion)
 
@@ -134,7 +137,11 @@ class PreviewStore:
             events[event_id] = rows
             if prefill and any(r["name"].casefold() == prefill.casefold() for r in rows):
                 prefill = None
-        return {"events": events, "prefill": prefill, "admin": me in self.admin_keys}
+        admin = me in self.admin_keys
+        # Occasion-wide: a key can be known here even when none of its rows are
+        # in this link's scope (disjoint-scope links, or all rows removed).
+        known = admin or (bool(me) and me in self.minted_keys)
+        return {"events": events, "prefill": prefill, "admin": admin, "known": known}
 
     def rsvp(self, body: dict) -> dict:
         token = body.get("token")
@@ -185,14 +192,16 @@ class PreviewStore:
                     "that name already has an RSVP here — use your private edit link to change it"
                 )
             # Admin edits never claim a row: a keyless row stays claimable by its owner.
-            # A supplied key binds to a new row only if the server minted it before
-            # (it already owns a row here); anything else gets a fresh mint.
+            # A supplied key binds to a new row only if this occasion minted it;
+            # anything else gets a fresh mint, recorded so the key stays
+            # honored even after its last row is removed.
             if admin or owner_key:
                 edit_key = owner_key
-            elif me and any(r.get("edit_key") == me for r in self.rsvps.values()):
+            elif me and me in self.minted_keys:
                 edit_key = me
             else:
                 edit_key = mint_token()
+                self.minted_keys.add(edit_key)
             self.rsvps[(event_id, name.casefold())] = {
                 "name": name,
                 "response": response,

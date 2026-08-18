@@ -144,7 +144,7 @@ class FakeTable:
         self.updates = []
         self.deletes = []
         self.consistent_reads = []
-        self.scans = []
+        self.puts = []
 
     def get_item(self, Key, ConsistentRead=False):
         self.consistent_reads.append(ConsistentRead)
@@ -158,21 +158,12 @@ class FakeTable:
         pk = ExpressionAttributeValues[":pk"]
         return {"Items": self.rsvps.get(pk, [])}
 
-    def scan(self, FilterExpression, ConsistentRead=False, ExclusiveStartKey=None):
-        assert ConsistentRead is True
-        # emulates the one scan shape the handler uses:
-        # Attr("edit_key").eq(me) & Attr("pk").begins_with("EVENT#")
-        self.scans.append(FilterExpression)
-        eq, begins = FilterExpression.get_expression()["values"]
-        assert eq.get_expression()["values"][0].name == "edit_key"
-        assert begins.get_expression()["values"][1] == "EVENT#"
-        target = eq.get_expression()["values"][1]
-        items = [
-            row
-            for (pk, sk), row in self.rows.items()
-            if pk.startswith("EVENT#") and row.get("edit_key") == target
-        ]
-        return {"Items": items}
+    def put_item(self, Item):
+        self.puts.append(Item)
+        if Item["sk"] == "META":
+            self.links[Item["pk"]] = Item
+        else:
+            self.rows[(Item["pk"], Item["sk"])] = Item
 
     @staticmethod
     def _condition_failed():
@@ -294,6 +285,8 @@ def test_put_rsvp_writes_ttl(monkeypatch):
     (update,) = table.updates
     assert update["Key"] == {"pk": "EVENT#bbq", "sk": "NAME#aaron"}
     assert update["ExpressionAttributeValues"][":expires"] == 1234567890
+    (key_record,) = table.puts
+    assert key_record["expires_at"] == 1234567890
 
 
 LINKS = {"LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq", "pool"]}}
@@ -305,12 +298,24 @@ def test_put_rsvp_mints_and_reuses_edit_key(monkeypatch):
     monkeypatch.setattr(handler, "table", lambda: table)
     first = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
     assert handler.TOKEN_RE.match(first["me"])
+    assert table.links[f"KEY#{first['me']}"] == {"pk": f"KEY#{first['me']}", "sk": "META"}
     # the owner's key updates the row and spans other events under the link
     same = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=first["me"])))
     assert same["me"] == first["me"]
     other_event = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(event_id="pool", me=first["me"])))
     assert other_event["me"] == first["me"]
     assert table.rows[("EVENT#bbq", "NAME#aaron")]["response"] == "no"
+
+
+def test_minted_key_survives_remove_then_rersvp(monkeypatch):
+    # a bookmarked edit link keeps working after its last RSVP is removed
+    table = FakeTable(links=LINKS)
+    monkeypatch.setattr(handler, "table", lambda: table)
+    owner = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True, me=owner["me"])))
+    again = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="Aaron B", me=owner["me"])))
+    assert again["me"] == owner["me"]
+    assert table.rows[("EVENT#bbq", "NAME#aaron b")]["edit_key"] == owner["me"]
 
 
 def test_put_rsvp_rejects_wrong_or_missing_key(monkeypatch):
@@ -429,8 +434,25 @@ def test_get_state_marks_mine_and_admin_without_leaking_keys(monkeypatch):
     assert row["mine"] is True
     assert "edit_key" not in row
     assert state["admin"] is False
+    assert state["known"] is True
     admin_state = handler.get_state("fixturebbqgroupchat2", ADMIN_KEY)
     assert admin_state["admin"] is True
+    assert admin_state["known"] is True
     assert admin_state["events"]["bbq"][0]["mine"] is False
     anon_state = handler.get_state("fixturebbqgroupchat2")
     assert anon_state["events"]["bbq"][0]["mine"] is False
+    assert anon_state["known"] is False
+    assert handler.get_state("fixturebbqgroupchat2", "strangerchosenkey222")["known"] is False
+
+
+def test_get_state_knows_key_beyond_link_scope(monkeypatch):
+    # a minted key vets occasion-wide: on a disjoint-scope link and after
+    # its last RSVP is removed, `known` stays true while no row is `mine`
+    table = FakeTable(links={**LINKS, "LINK#fixturepoolonly2222": {"rsvp_events": ["pool"]}})
+    monkeypatch.setattr(handler, "table", lambda: table)
+    owner = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    state = handler.get_state("fixturepoolonly2222", owner["me"])
+    assert state["known"] is True
+    assert all(not r["mine"] for rows in state["events"].values() for r in rows)
+    handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True, me=owner["me"])))
+    assert handler.get_state("fixturebbqgroupchat2", owner["me"])["known"] is True

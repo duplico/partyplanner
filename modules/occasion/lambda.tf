@@ -26,8 +26,8 @@ data "aws_iam_policy_document" "rsvp" {
     actions = [
       "dynamodb:DeleteItem",
       "dynamodb:GetItem",
+      "dynamodb:PutItem",
       "dynamodb:Query",
-      "dynamodb:Scan",
       "dynamodb:UpdateItem",
     ]
     resources = [aws_dynamodb_table.occasion.arn]

@@ -42,13 +42,16 @@ invariant here is a bug, and any proposed change should be checked against it.
 
 1. Keys are 96-bit `secrets`-random base32; format-validated (`^[a-z2-7]{16,64}$`)
    everywhere they cross a trust boundary.
-2. Keys are only ever minted by the server or the `partyplanner` CLI. A
-   client-supplied key binds to a new row only if the server already knows it
-   (it owns another row in the occasion, which is exactly the cross-event
-   reuse case); any other value gets a fresh server-minted key. A key is
-   returned only to the writer of a successful non-admin write.
+2. Keys are only ever minted by the server or the `partyplanner` CLI. Every
+   mint writes a `KEY#<key>` metadata record; a client-supplied key binds to
+   a new row only if that record exists (i.e. this occasion minted it), and
+   any other value gets a fresh server-minted key. A key is returned only to
+   the writer of a successful non-admin write.
 3. One key per person per occasion: the same key is reused and honored across
-   all events reachable from the invitation.
+   all events reachable from the invitation. Because the `KEY#` record
+   outlives the rows it owns, a bookmarked edit link keeps working after its
+   last RSVP is removed (e.g. fixing a name typo by remove-and-re-add).
+   `KEY#` records carry the same TTL as the link that minted them.
 
 **Authorization (enforced server-side, atomically)**
 
@@ -63,7 +66,8 @@ invariant here is a bug, and any proposed change should be checked against it.
 **Secrecy**
 
 7. State responses never contain raw keys — ownership surfaces only as the
-   boolean `mine`, admin status only as the boolean `admin`.
+   booleans `mine` (per row), `admin`, and `known` (the supplied key was
+   minted in this occasion, judged occasion-wide).
 8. API responses to admin writes never echo a key.
 9. The API never logs request bodies or keys.
 10. The admin key never appears in rendered static output; it lives only in
@@ -73,10 +77,12 @@ invariant here is a bug, and any proposed change should be checked against it.
 
 **Browser handling of `?me=`**
 
-12. A URL-supplied key is *unvetted* until a state response proves it is the
-    visitor's (it is admin, or it owns a row). Unvetted keys are never sent
-    with writes, never persisted, and are dropped (falling back to the stored
-    key) once disproven — including when the state fetch fails.
+12. A URL-supplied key is *unvetted* until a state response proves the server
+    knows it (`admin` or `known`). The check is occasion-wide, so a bookmark
+    still vets on a link whose scope shows none of its rows and after its
+    last RSVP was removed. Unvetted keys are never sent with writes, never
+    persisted, and are dropped (falling back to the stored key) once
+    disproven — including when the state fetch fails.
 13. Guest keys persist in `localStorage` only after vetting; the admin key is
     never persisted client-side.
 
