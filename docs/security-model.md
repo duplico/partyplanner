@@ -33,7 +33,8 @@ invariant here is a bug, and any proposed change should be checked against it.
 | View pages / RSVP lists in a scope | invitation token |
 | Create an RSVP under an unclaimed name | invitation token |
 | Modify/remove an RSVP with an edit key | that edit key, or the admin key |
-| Modify/remove/claim a **keyless** RSVP | invitation token (first ordinary write claims it) or admin key (never claims) |
+| Modify/claim a **keyless** RSVP | invitation token (first ordinary write claims it) or admin key (never claims) |
+| Remove a **keyless** RSVP | admin key only (an ordinary writer must claim it first) |
 
 ## Invariants
 
@@ -85,7 +86,9 @@ invariant here is a bug, and any proposed change should be checked against it.
   revocation short of re-minting (links) or rotating the admin key.
 - **Keys in URLs.** `?me=` bookmarks live in browser history and sync'd
   bookmark stores. Mitigated by the share warning and referrer policy;
-  accepted for the bookmarkability it buys.
+  accepted for the bookmarkability it buys. Opening someone else's edit link
+  acts with their key for that visit only — it never replaces a key this
+  browser already saved.
 - **Name squatting.** A link-holder can RSVP under someone else's name before
   they do. Accepted because names aren't unique to begin with — the social
   graph's trust is load-bearing here, and people who share a name work it out

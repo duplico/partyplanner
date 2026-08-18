@@ -134,7 +134,14 @@
           return refresh();
         }
         meVetted = true;
-        if (me && me === urlMe && !isAdmin) saveKey(me);
+        // Persist a vetted URL key only when this browser has no key of its
+        // own: opening someone else's edit link acts on it for this visit
+        // without replacing the visitor's saved identity.
+        if (me && me === urlMe && !isAdmin) {
+          var saved = "";
+          try { saved = localStorage.getItem(storageKey) || ""; } catch (err) { /* ignore */ }
+          if (!KEY_RE.test(saved) || saved === me) saveKey(me);
+        }
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId]);
           prefillMine(eventId, state.events[eventId]);
