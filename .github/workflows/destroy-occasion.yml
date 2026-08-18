@@ -55,6 +55,9 @@ jobs:
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           python-version: "3.12"
+          # The caller's events repo has no Python lockfile to key a cache
+          # on, and partyplanner installs from git — nothing worth caching.
+          enable-cache: false
 
       - name: Install partyplanner
         run: >
