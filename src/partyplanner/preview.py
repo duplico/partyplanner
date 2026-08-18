@@ -200,9 +200,13 @@ class PreviewStore:
                 raise PreviewForbidden(
                     "that name already has an RSVP here — use your private edit link to change it"
                 )
-            if existing is None:
-                count = sum(1 for eid, _ in self.rsvps if eid == event_id)
-                if count >= self.max_event_rsvps:
+            # The cap doesn't bind the host, and a key that already owns a
+            # row here may exceed it by one so a rename (create-then-remove)
+            # works at a full event.
+            if existing is None and not admin:
+                rows = [row for (eid, _), row in self.rsvps.items() if eid == event_id]
+                allowance = 1 if me and any(row["edit_key"] == me for row in rows) else 0
+                if len(rows) >= self.max_event_rsvps + allowance:
                     raise PreviewError("this event's RSVP list is full")
             # A supplied key binds to a new row only if this occasion minted it;
             # anything else gets a fresh mint, recorded so the key stays

@@ -298,6 +298,53 @@ def test_put_rsvp_rejects_new_name_when_event_full(monkeypatch):
     assert ("EVENT#bbq", "NAME#guest 0000") not in table.rows
 
 
+def test_rsvp_cap_exempts_admin(monkeypatch):
+    full = [
+        {"name": f"guest {i:04d}", "response": "yes", "party_size": 0}
+        for i in range(handler.DEFAULT_MAX_EVENT_RSVPS)
+    ]
+    table = FakeTable(
+        links={
+            "LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]},
+            "ADMIN#fixtureadminkey22222": {"sk": "META"},
+        },
+        rsvps={"EVENT#bbq": full},
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    result = handler.put_rsvp(
+        handler.parse_rsvp(_rsvp_body(name="Late Addition", me="fixtureadminkey22222"))
+    )
+    assert result["ok"] is True
+    assert ("EVENT#bbq", "NAME#late addition") in table.rows
+
+
+def test_rsvp_cap_allows_one_extra_for_row_owner(monkeypatch):
+    # A rename is create-then-remove, so a key that owns a row may go one over
+    # the cap — but only one.
+    full = [
+        {"name": f"guest {i:04d}", "response": "yes", "party_size": 0}
+        for i in range(handler.DEFAULT_MAX_EVENT_RSVPS)
+    ]
+    full[0]["edit_key"] = "fixtureeditkey222222"
+    table = FakeTable(
+        links={
+            "LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]},
+            "KEY#fixtureeditkey222222": {"sk": "META"},
+        },
+        rsvps={"EVENT#bbq": full},
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    handler.put_rsvp(
+        handler.parse_rsvp(_rsvp_body(name="Renamed Guest", me="fixtureeditkey222222"))
+    )
+    assert table.rows[("EVENT#bbq", "NAME#renamed guest")]["edit_key"] == "fixtureeditkey222222"
+    table.rsvps["EVENT#bbq"] = full + [table.rows[("EVENT#bbq", "NAME#renamed guest")]]
+    with pytest.raises(handler.BadRequest, match="full"):
+        handler.put_rsvp(
+            handler.parse_rsvp(_rsvp_body(name="Another Extra", me="fixtureeditkey222222"))
+        )
+
+
 def test_rsvp_cap_is_occasion_configurable(monkeypatch):
     table = FakeTable(
         links={

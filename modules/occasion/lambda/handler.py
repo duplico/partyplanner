@@ -247,9 +247,14 @@ def put_rsvp(rsvp: dict) -> dict:
         raise Forbidden(
             "that name already has an RSVP here — use your private edit link to change it"
         )
-    if existing is None:
+    # The cap doesn't bind the host, and a key that already owns a row here
+    # may exceed it by one so a rename (create-then-remove) works at a full
+    # event without letting any one key grow the list unboundedly.
+    if existing is None and not admin:
         cap = max_event_rsvps()
-        if len(event_rows(rsvp["event_id"], cap, consistent=True)) >= cap:
+        rows = event_rows(rsvp["event_id"], cap + 1, consistent=True)
+        allowance = 1 if me and any(r.get("edit_key") == me for r in rows) else 0
+        if len(rows) >= cap + allowance:
             raise BadRequest("this event's RSVP list is full")
     # A supplied key binds to a new row only if this occasion minted it;
     # anything else gets a fresh mint, recorded so the key stays honored
