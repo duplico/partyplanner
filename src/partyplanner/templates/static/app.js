@@ -51,10 +51,12 @@
 
   function removeRsvp(eventId, name, status) {
     if (!window.confirm("Remove " + name + "'s RSVP?")) return;
+    var payload = { token: token, event_id: eventId, name: name, remove: true };
+    if (me && meVetted) payload.me = me;
     fetch("/api/rsvp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: token, event_id: eventId, name: name, me: me, remove: true }),
+      body: JSON.stringify(payload),
     })
       .then(function (res) {
         if (!res.ok) throw new Error("remove failed: " + res.status);

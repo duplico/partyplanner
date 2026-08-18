@@ -91,6 +91,18 @@ invariant here is a bug, and any proposed change should be checked against it.
   graph's trust is load-bearing here, and people who share a name work it out
   themselves without a control required. The claimed-name 403 makes
   collisions visible, and the host can delete a bad-faith squatter.
+- **Shared devices share an identity.** The stored key *is* the browser
+  profile's identity, so a second person RSVPing under a new name on someone
+  else's browser gets their row bound to that browser's key — like sharing a
+  logged-in account. The UI makes it visible ("(you)" on the other person's
+  rows), and the affected person can re-RSVP from their own device after the
+  host clears the row.
+- **Keys transit the API as query parameters.** `GET /api/state?me=<key>`
+  would appear in server access logs if any were enabled; none are
+  (CloudFront and API Gateway access logging are off), and request bodies —
+  where writes carry `me` — are never logged. Accepted rather than moving to
+  a header, which would complicate CloudFront origin request handling for
+  little gain in the current logging posture.
 - **Keyless-row claims.** Pre-upgrade rows and host-entered rows are claimable
   by the first ordinary write from a link-holder. The alternative (locking
   them) would strand guests whose RSVP the host typed in for them. The host
