@@ -147,8 +147,16 @@ def get_link(token: str) -> dict | None:
 
 
 def max_event_rsvps() -> int:
-    """Occasion-configured cap on RSVP rows per event."""
-    item = table().get_item(Key={"pk": "CONFIG#OCCASION", "sk": "META"}).get("Item")
+    """Occasion-configured cap on RSVP rows per event.
+
+    Strongly consistent so a just-lowered cap takes effect immediately
+    after sync-links.
+    """
+    item = (
+        table()
+        .get_item(Key={"pk": "CONFIG#OCCASION", "sk": "META"}, ConsistentRead=True)
+        .get("Item")
+    )
     if item is None:
         return DEFAULT_MAX_EVENT_RSVPS
     return int(item.get("max_rsvps_per_event", DEFAULT_MAX_EVENT_RSVPS))

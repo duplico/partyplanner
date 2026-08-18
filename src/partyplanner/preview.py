@@ -134,6 +134,10 @@ class PreviewStore:
                 for eid, row in snapshot
                 if eid == event_id
             ]
+            # Match the Lambda's truncation: rows arrive in sort-key order
+            # (casefolded name), capped, then sorted for display.
+            rows.sort(key=lambda r: r["name"].casefold())
+            del rows[self.max_event_rsvps :]
             rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
             events[event_id] = rows
             if prefill and any(r["name"].casefold() == prefill.casefold() for r in rows):
