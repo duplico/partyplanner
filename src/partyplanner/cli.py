@@ -16,13 +16,34 @@ def _load(config_path: Path):
         raise click.ClickException(str(e)) from e
 
 
+def _default_config(ctx: click.Context, param: click.Parameter, value: Path | None) -> Path | None:
+    if value is not None:
+        return value
+    if ctx.resilient_parsing:
+        return None
+    fallback = Path("occasion.yaml")
+    if not fallback.is_file():
+        raise click.UsageError(
+            "no CONFIG_PATH given and no occasion.yaml in the current directory", ctx=ctx
+        )
+    return fallback
+
+
+_config_argument = click.argument(
+    "config_path",
+    required=False,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    callback=_default_config,
+)
+
+
 @click.group()
 def main() -> None:
     """Config-first invitation sites."""
 
 
 @main.command()
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 def validate(config_path: Path) -> None:
     """Validate an occasion config."""
     occasion = _load(config_path)
@@ -30,7 +51,7 @@ def validate(config_path: Path) -> None:
 
 
 @main.command()
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 def mint(config_path: Path) -> None:
     """Fill in missing event ids and link tokens, writing them back to the config."""
     try:
@@ -44,7 +65,7 @@ def mint(config_path: Path) -> None:
 
 
 @main.command()
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 @click.option("--out", type=click.Path(path_type=Path), default=Path("out"), show_default=True)
 def render(config_path: Path, out: Path) -> None:
     """Render the static site, ICS files, and links.csv into --out."""
@@ -59,7 +80,7 @@ def render(config_path: Path, out: Path) -> None:
 
 
 @main.command()
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 @click.option("--port", default=8000, show_default=True, help="Local port (0 picks a free one).")
 @click.option(
     "--host",
@@ -93,7 +114,7 @@ def _print_links(occasion) -> None:
 
 
 @main.command()
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 def links(config_path: Path) -> None:
     """Print the invitation links for an occasion."""
     _print_links(_load(config_path))
@@ -105,7 +126,7 @@ def link() -> None:
 
 
 @link.command("add")
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 @click.option(
     "--scope",
     default="all",
@@ -146,7 +167,7 @@ def link_add(
 
 
 @link.command("admin")
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 def link_admin(config_path: Path) -> None:
     """Print the occasion's admin key, minting one into .links.yaml if needed.
 
@@ -166,9 +187,9 @@ def link_admin(config_path: Path) -> None:
 
 
 @link.command("revoke")
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("token")
-def link_revoke(config_path: Path, token: str) -> None:
+@_config_argument
+def link_revoke(token: str, config_path: Path) -> None:
     """Move a link's token to `revoked:` so the URL 404s on the next deploy."""
     try:
         config_mod.revoke_link(config_path, token)
@@ -178,14 +199,14 @@ def link_revoke(config_path: Path, token: str) -> None:
 
 
 @link.command("list")
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 def link_list(config_path: Path) -> None:
     """Print the invitation links for an occasion."""
     _print_links(_load(config_path))
 
 
 @main.command("sync-links")
-@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+@_config_argument
 @click.option("--table", "table_name", required=True, help="Occasion DynamoDB table name.")
 def sync_links(config_path: Path, table_name: str) -> None:
     """Upsert link records into DynamoDB and delete revoked/removed ones."""
