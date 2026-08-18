@@ -78,10 +78,16 @@ resource "aws_cloudfront_function" "index_rewrite" {
       if (uri.endsWith('/')) {
         request.uri = uri + 'index.html';
       } else if (/^\/i\/[a-z2-7]{16,64}$/.test(uri)) {
+        var qs = Object.keys(request.querystring).map(function (k) {
+          var entry = request.querystring[k];
+          return (entry.multiValue || [entry]).map(function (v) {
+            return k + (v.value === '' ? '' : '=' + v.value);
+          }).join('&');
+        }).join('&');
         return {
           statusCode: 301,
           statusDescription: 'Moved Permanently',
-          headers: { location: { value: uri + '/' } }
+          headers: { location: { value: uri + '/' + (qs ? '?' + qs : '') } }
         };
       }
       return request;
