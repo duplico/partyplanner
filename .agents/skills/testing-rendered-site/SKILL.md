@@ -56,9 +56,9 @@ reloads but not process restarts.
   (clear localStorage between roles), incognito window = returning user via
   the `?me=` link.
 - CAUTION with two windows open: the CDP-based console tool (browser_console)
-  attaches to ONE target only (in practice the incognito window's page), not
-  necessarily the window visible on screen — verify which context you're in
-  (e.g. set `document.title` and look at the tabs) before mutating
+  attaches to ONE target only, and which one is not predictable — it is not
+  necessarily the window visible on screen. Always verify which context you're
+  in (e.g. set `document.title` and look at the tabs) before mutating
   localStorage, or use each window's own devtools (F12) instead.
 - Identity-UX behaviors (if the branch has them): host mode renders a JS
   `.admin-banner` div with a "Leave host mode" link (href = URL minus `me`);
