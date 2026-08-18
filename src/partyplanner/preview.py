@@ -122,6 +122,7 @@ class PreviewStore:
         with self._lock:
             snapshot = [(eid, dict(row)) for (eid, _), row in self.rsvps.items()]
         events: dict[str, list[dict]] = {}
+        more: dict[str, int] = {}
         prefill = link.get("prefill_name")
         for event_id in link["rsvp_events"]:
             rows = [
@@ -135,8 +136,11 @@ class PreviewStore:
                 if eid == event_id
             ]
             # Match the Lambda's truncation: rows arrive in sort-key order
-            # (casefolded name), capped, then sorted for display.
+            # (casefolded name), capped, then sorted for display. Host-entered
+            # rows can exceed the cap; report how many names are hidden.
             rows.sort(key=lambda r: r["name"].casefold())
+            if len(rows) > self.max_event_rsvps:
+                more[event_id] = len(rows) - self.max_event_rsvps
             del rows[self.max_event_rsvps :]
             rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
             events[event_id] = rows
@@ -146,7 +150,7 @@ class PreviewStore:
         # Occasion-wide: a key can be known here even when none of its rows are
         # in this link's scope (disjoint-scope links, or all rows removed).
         known = admin or (bool(me) and me in self.minted_keys)
-        return {"events": events, "prefill": prefill, "admin": admin, "known": known}
+        return {"events": events, "more": more, "prefill": prefill, "admin": admin, "known": known}
 
     def rsvp(self, body: dict) -> dict:
         token = body.get("token")

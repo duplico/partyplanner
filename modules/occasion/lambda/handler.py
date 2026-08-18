@@ -184,6 +184,27 @@ def event_rows(event_id: str, limit: int, consistent: bool = False) -> list[dict
     return items[:limit]
 
 
+def event_row_count(event_id: str, max_pages: int = 5) -> int:
+    """Total NAME# rows for an event, counted without loading items.
+
+    COUNT pages carry no item data, so a small page bound covers tens of
+    thousands of rows while keeping the work per request bounded.
+    """
+    total = 0
+    kwargs = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
+        "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
+        "Select": "COUNT",
+    }
+    for _ in range(max_pages):
+        page = table().query(**kwargs)
+        total += page["Count"]
+        if "LastEvaluatedKey" not in page:
+            break
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+    return total
+
+
 def get_state(token: str, me: str = "") -> dict:
     link = get_link(token)
     if link is None:
@@ -195,6 +216,7 @@ def get_state(token: str, me: str = "") -> dict:
     # in this link's scope (disjoint-scope links, or all rows removed).
     known = admin or (bool(me) and key_is_minted(me))
     events: dict[str, list[dict]] = {}
+    more: dict[str, int] = {}
     prefill = link.get("prefill_name")
     cap = max_event_rsvps()
     for event_id in link.get("rsvp_events", []):
@@ -207,11 +229,17 @@ def get_state(token: str, me: str = "") -> dict:
             }
             for item in event_rows(event_id, cap)
         ]
+        # Host-entered rows can exceed the cap; tell the client how many
+        # names the truncated list is hiding.
+        if len(rows) >= cap:
+            hidden = event_row_count(event_id) - cap
+            if hidden > 0:
+                more[event_id] = hidden
         rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
         events[event_id] = rows
         if prefill and any(r["name"].casefold() == str(prefill).casefold() for r in rows):
             prefill = None
-    return {"events": events, "prefill": prefill, "admin": admin, "known": known}
+    return {"events": events, "more": more, "prefill": prefill, "admin": admin, "known": known}
 
 
 def put_rsvp(rsvp: dict) -> dict:

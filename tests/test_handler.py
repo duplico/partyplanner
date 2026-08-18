@@ -161,9 +161,12 @@ class FakeTable:
         Limit=None,
         ExclusiveStartKey=None,
         ConsistentRead=False,
+        Select=None,
     ):
         pk = ExpressionAttributeValues[":pk"]
         items = self.rsvps.get(pk, [])
+        if Select == "COUNT":
+            return {"Count": len(items)}
         if Limit is not None and len(items) > Limit:
             return {
                 "Items": items[:Limit],
@@ -235,9 +238,12 @@ class PagingTable(FakeTable):
         Limit=None,
         ExclusiveStartKey=None,
         ConsistentRead=False,
+        Select=None,
     ):
         pk = ExpressionAttributeValues[":pk"]
         items = self.rsvps.get(pk, [])
+        if Select == "COUNT":
+            return {"Count": len(items)}
         if ExclusiveStartKey is None:
             return {"Items": items[:1], "LastEvaluatedKey": {"pk": pk, "sk": items[0]["name"]}}
         return {"Items": items[1:]}
@@ -256,6 +262,7 @@ def test_get_state_follows_pagination(monkeypatch):
     monkeypatch.setattr(handler, "table", lambda: table)
     state = handler.get_state("fixturebbqgroupchat2")
     assert [r["name"] for r in state["events"]["bbq"]] == ["aaron", "chance"]
+    assert state["more"] == {}
     assert state["admin"] is False
 
 
@@ -272,6 +279,7 @@ def test_get_state_bounds_rows_per_event(monkeypatch):
     monkeypatch.setattr(handler, "table", lambda: table)
     state = handler.get_state("fixturebbqgroupchat2")
     assert len(state["events"]["bbq"]) == handler.DEFAULT_MAX_EVENT_RSVPS
+    assert state["more"]["bbq"] == 50
 
 
 def test_put_rsvp_rejects_new_name_when_event_full(monkeypatch):

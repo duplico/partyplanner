@@ -104,7 +104,7 @@
       });
   }
 
-  function renderEvent(eventId, rsvps) {
+  function renderEvent(eventId, rsvps, more) {
     var list = document.querySelector('[data-rsvps="' + eventId + '"]');
     var counts = document.querySelector('[data-counts="' + eventId + '"]');
     var status = document.querySelector('[data-status="' + eventId + '"]');
@@ -131,6 +131,7 @@
       list.appendChild(item);
     });
     if (rsvps.length === 0) list.appendChild(el("li", "muted", "No RSVPs yet — be the first!"));
+    if (more > 0) list.appendChild(el("li", "muted", "+ " + more + " more not shown"));
     if (counts) {
       var parts = [];
       parts.push(yes + " yes" + (guests > 0 ? " (+" + guests + " guests)" : ""));
@@ -191,7 +192,7 @@
         meVetted = true;
         if (me && me === urlMe && !isAdmin) saveKey(me);
         Object.keys(state.events).forEach(function (eventId) {
-          renderEvent(eventId, state.events[eventId]);
+          renderEvent(eventId, state.events[eventId], (state.more || {})[eventId] || 0);
           prefillMine(eventId, state.events[eventId]);
         });
         if (state.prefill) {
