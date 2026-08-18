@@ -162,13 +162,17 @@ def max_event_rsvps() -> int:
     return int(item.get("max_rsvps_per_event", DEFAULT_MAX_EVENT_RSVPS))
 
 
-def event_rows(event_id: str, limit: int) -> list[dict]:
-    """Up to `limit` NAME# rows for an event, bounding work per request."""
+def event_rows(event_id: str, limit: int, consistent: bool = False) -> list[dict]:
+    """Up to `limit` NAME# rows for an event, bounding work per request.
+
+    `consistent` is for limit enforcement; display reads tolerate staleness.
+    """
     items: list[dict] = []
     kwargs = {
         "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
         "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
         "Limit": limit,
+        "ConsistentRead": consistent,
     }
     while len(items) < limit:
         page = table().query(**kwargs)
@@ -245,7 +249,7 @@ def put_rsvp(rsvp: dict) -> dict:
         )
     if existing is None:
         cap = max_event_rsvps()
-        if len(event_rows(rsvp["event_id"], cap)) >= cap:
+        if len(event_rows(rsvp["event_id"], cap, consistent=True)) >= cap:
             raise BadRequest("this event's RSVP list is full")
     # A supplied key binds to a new row only if this occasion minted it;
     # anything else gets a fresh mint, recorded so the key stays honored
