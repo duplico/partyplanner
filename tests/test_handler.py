@@ -158,7 +158,8 @@ class FakeTable:
         pk = ExpressionAttributeValues[":pk"]
         return {"Items": self.rsvps.get(pk, [])}
 
-    def scan(self, FilterExpression, ExclusiveStartKey=None):
+    def scan(self, FilterExpression, ConsistentRead=False, ExclusiveStartKey=None):
+        assert ConsistentRead is True
         # emulates the one scan shape the handler uses:
         # Attr("edit_key").eq(me) & Attr("pk").begins_with("EVENT#")
         self.scans.append(FilterExpression)

@@ -73,6 +73,9 @@ def key_owns_a_row(me: str) -> bool:
     """True if this key is already bound to an RSVP row in the occasion."""
     kwargs: dict = {
         "FilterExpression": Attr("edit_key").eq(me) & Attr("pk").begins_with("EVENT#"),
+        # Strongly consistent so a key minted by a just-committed first RSVP
+        # is recognized by an immediate second one.
+        "ConsistentRead": True,
     }
     while True:
         page = table().scan(**kwargs)
