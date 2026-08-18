@@ -40,8 +40,14 @@
     return node;
   }
 
+  // Adopts a key for this visit; persists it unless it was borrowed from the
+  // URL while this browser already saved a different key of its own —
+  // opening someone else's edit link never replaces the visitor's identity.
   function saveKey(key) {
     me = key;
+    var saved = "";
+    try { saved = localStorage.getItem(storageKey) || ""; } catch (err) { /* ignore */ }
+    if (urlMe && key === urlMe && KEY_RE.test(saved) && saved !== key) return;
     try { localStorage.setItem(storageKey, key); } catch (err) { /* ignore */ }
   }
 
@@ -134,14 +140,7 @@
           return refresh();
         }
         meVetted = true;
-        // Persist a vetted URL key only when this browser has no key of its
-        // own: opening someone else's edit link acts on it for this visit
-        // without replacing the visitor's saved identity.
-        if (me && me === urlMe && !isAdmin) {
-          var saved = "";
-          try { saved = localStorage.getItem(storageKey) || ""; } catch (err) { /* ignore */ }
-          if (!KEY_RE.test(saved) || saved === me) saveKey(me);
-        }
+        if (me && me === urlMe && !isAdmin) saveKey(me);
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId]);
           prefillMine(eventId, state.events[eventId]);
