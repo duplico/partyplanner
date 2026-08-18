@@ -36,6 +36,7 @@ RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
 MAX_PARTY = 10
 MAX_BODY = 2048
+MAX_EVENT_RSVPS = 200
 
 _table = None
 
@@ -144,6 +145,24 @@ def get_link(token: str) -> dict | None:
     return item
 
 
+def event_rows(event_id: str, limit: int = MAX_EVENT_RSVPS) -> list[dict]:
+    """Up to `limit` NAME# rows for an event, bounding work per request."""
+    items: list[dict] = []
+    kwargs = {
+        "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
+        "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
+        "Limit": limit,
+    }
+    while len(items) < limit:
+        page = table().query(**kwargs)
+        items.extend(page["Items"])
+        if "LastEvaluatedKey" not in page:
+            break
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+        kwargs["Limit"] = limit - len(items)
+    return items[:limit]
+
+
 def get_state(token: str, me: str = "") -> dict:
     link = get_link(token)
     if link is None:
@@ -157,17 +176,6 @@ def get_state(token: str, me: str = "") -> dict:
     events: dict[str, list[dict]] = {}
     prefill = link.get("prefill_name")
     for event_id in link.get("rsvp_events", []):
-        items = []
-        kwargs = {
-            "KeyConditionExpression": "pk = :pk AND begins_with(sk, :sk)",
-            "ExpressionAttributeValues": {":pk": f"EVENT#{event_id}", ":sk": "NAME#"},
-        }
-        while True:
-            page = table().query(**kwargs)
-            items.extend(page["Items"])
-            if "LastEvaluatedKey" not in page:
-                break
-            kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
         rows = [
             {
                 "name": item["name"],
@@ -175,7 +183,7 @@ def get_state(token: str, me: str = "") -> dict:
                 "party_size": int(item["party_size"]),
                 "mine": bool(me) and item.get("edit_key") == me,
             }
-            for item in items
+            for item in event_rows(event_id)
         ]
         rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
         events[event_id] = rows
@@ -214,6 +222,8 @@ def put_rsvp(rsvp: dict) -> dict:
         raise Forbidden(
             "that name already has an RSVP here — use your private edit link to change it"
         )
+    if existing is None and len(event_rows(rsvp["event_id"])) >= MAX_EVENT_RSVPS:
+        raise BadRequest("this event's RSVP list is full")
     # Admin edits never claim a row: a keyless row stays claimable by its owner.
     # A supplied key binds to a new row only if this occasion minted it;
     # anything else gets a fresh mint, recorded so the key stays honored

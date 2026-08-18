@@ -154,9 +154,17 @@ class FakeTable:
             item = self.rows.get((Key["pk"], Key["sk"]))
         return {"Item": item} if item else {}
 
-    def query(self, KeyConditionExpression, ExpressionAttributeValues):
+    def query(
+        self, KeyConditionExpression, ExpressionAttributeValues, Limit=None, ExclusiveStartKey=None
+    ):
         pk = ExpressionAttributeValues[":pk"]
-        return {"Items": self.rsvps.get(pk, [])}
+        items = self.rsvps.get(pk, [])
+        if Limit is not None and len(items) > Limit:
+            return {
+                "Items": items[:Limit],
+                "LastEvaluatedKey": {"pk": pk, "sk": items[Limit - 1]["name"]},
+            }
+        return {"Items": items}
 
     def put_item(self, Item):
         self.puts.append(Item)
@@ -215,7 +223,9 @@ class FakeTable:
 
 
 class PagingTable(FakeTable):
-    def query(self, KeyConditionExpression, ExpressionAttributeValues, ExclusiveStartKey=None):
+    def query(
+        self, KeyConditionExpression, ExpressionAttributeValues, Limit=None, ExclusiveStartKey=None
+    ):
         pk = ExpressionAttributeValues[":pk"]
         items = self.rsvps.get(pk, [])
         if ExclusiveStartKey is None:
@@ -237,6 +247,45 @@ def test_get_state_follows_pagination(monkeypatch):
     state = handler.get_state("fixturebbqgroupchat2")
     assert [r["name"] for r in state["events"]["bbq"]] == ["aaron", "chance"]
     assert state["admin"] is False
+
+
+def test_get_state_bounds_rows_per_event(monkeypatch):
+    over = handler.MAX_EVENT_RSVPS + 50
+    table = FakeTable(
+        links={"LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]}},
+        rsvps={
+            "EVENT#bbq": [
+                {"name": f"guest {i:04d}", "response": "yes", "party_size": 0} for i in range(over)
+            ]
+        },
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    state = handler.get_state("fixturebbqgroupchat2")
+    assert len(state["events"]["bbq"]) == handler.MAX_EVENT_RSVPS
+
+
+def test_put_rsvp_rejects_new_name_when_event_full(monkeypatch):
+    full = [
+        {"name": f"guest {i:04d}", "response": "yes", "party_size": 0}
+        for i in range(handler.MAX_EVENT_RSVPS)
+    ]
+    full[0]["edit_key"] = "fixtureeditkey222222"
+    table = FakeTable(
+        links={"LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]}},
+        rsvps={"EVENT#bbq": full},
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    with pytest.raises(handler.BadRequest, match="full"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="One Too Many")))
+    # existing rows can still be edited and removed at the cap
+    handler.put_rsvp(
+        handler.parse_rsvp(_rsvp_body(name="guest 0000", response="no", me="fixtureeditkey222222"))
+    )
+    assert table.rows[("EVENT#bbq", "NAME#guest 0000")]["response"] == "no"
+    handler.put_rsvp(
+        handler.parse_rsvp(_rsvp_body(name="guest 0000", remove=True, me="fixtureeditkey222222"))
+    )
+    assert ("EVENT#bbq", "NAME#guest 0000") not in table.rows
 
 
 def test_get_state_prefill_suppressed_after_rsvp(monkeypatch):

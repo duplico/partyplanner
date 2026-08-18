@@ -30,6 +30,7 @@ RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
 MAX_PARTY = 10
 MAX_BODY = 2048
+MAX_EVENT_RSVPS = 200
 EVENT_ID_RE = re.compile(r"^[a-z0-9-]{1,64}\Z")
 
 
@@ -191,6 +192,10 @@ class PreviewStore:
                 raise PreviewForbidden(
                     "that name already has an RSVP here — use your private edit link to change it"
                 )
+            if existing is None:
+                count = sum(1 for eid, _ in self.rsvps if eid == event_id)
+                if count >= MAX_EVENT_RSVPS:
+                    raise PreviewError("this event's RSVP list is full")
             # Admin edits never claim a row: a keyless row stays claimable by its owner.
             # A supplied key binds to a new row only if this occasion minted it;
             # anything else gets a fresh mint, recorded so the key stays
