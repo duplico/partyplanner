@@ -8,15 +8,30 @@
   var KEY_RE = /^[a-z2-7]{16,64}$/;
   var storageKey = "partyplanner-me";
   var me = "";
+  // A URL-supplied key is unvetted until a state response proves it's the
+  // visitor's (admin, or owns a row); until then it's never sent with writes.
+  var meVetted = true;
   var urlMe = new URLSearchParams(location.search).get("me") || "";
-  if (KEY_RE.test(urlMe)) me = urlMe;
-  else {
+  if (KEY_RE.test(urlMe)) {
+    me = urlMe;
+    meVetted = false;
+  } else {
     try {
       var stored = localStorage.getItem(storageKey) || "";
       if (KEY_RE.test(stored)) me = stored;
     } catch (err) { /* storage unavailable: ?me= still works */ }
   }
   var isAdmin = false;
+
+  function dropUrlKey() {
+    urlMe = "";
+    me = "";
+    meVetted = true;
+    try {
+      var fallback = localStorage.getItem(storageKey) || "";
+      if (KEY_RE.test(fallback)) me = fallback;
+    } catch (err) { /* ignore */ }
+  }
 
   function el(tag, className, text) {
     var node = document.createElement(tag);
@@ -112,19 +127,12 @@
         var ownsARow = Object.keys(state.events).some(function (eventId) {
           return state.events[eventId].some(function (r) { return r.mine; });
         });
-        if (me && me === urlMe && !isAdmin) {
-          if (ownsARow) saveKey(me);
-          else {
-            // Unproven URL key: never use, store, or attach it to a row.
-            urlMe = "";
-            me = "";
-            try {
-              var fallback = localStorage.getItem(storageKey) || "";
-              if (KEY_RE.test(fallback)) me = fallback;
-            } catch (err) { /* ignore */ }
-            return refresh();
-          }
+        if (me && me === urlMe && !isAdmin && !ownsARow) {
+          dropUrlKey();
+          return refresh();
         }
+        meVetted = true;
+        if (me && me === urlMe && !isAdmin) saveKey(me);
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId]);
           prefillMine(eventId, state.events[eventId]);
@@ -136,6 +144,7 @@
         }
       })
       .catch(function () {
+        if (!meVetted) dropUrlKey();
         document.querySelectorAll(".rsvp-list").forEach(function (list) {
           list.textContent = "";
           list.appendChild(el("li", "muted", "Couldn't load RSVPs — try refreshing."));
@@ -158,7 +167,7 @@
         response: form.elements.response.value,
         party_size: parseInt(form.elements.party_size.value || "0", 10),
       };
-      if (me) payload.me = me;
+      if (me && meVetted) payload.me = me;
       fetch("/api/rsvp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
