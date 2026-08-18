@@ -65,12 +65,20 @@
       body: JSON.stringify(payload),
     })
       .then(function (res) {
-        if (!res.ok) throw new Error("remove failed: " + res.status);
-        if (status) status.textContent = "RSVP removed.";
-        return refresh();
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            throw new Error(data && data.error ? data.error : "remove failed");
+          }
+          if (status) status.textContent = "RSVP removed.";
+          return refresh();
+        });
       })
-      .catch(function () {
-        if (status) status.textContent = "Couldn't remove that RSVP — try again?";
+      .catch(function (err) {
+        if (status) {
+          status.textContent = err && err.message && err.message !== "remove failed"
+            ? err.message
+            : "Couldn't remove that RSVP — try again?";
+        }
       });
   }
 
@@ -113,9 +121,21 @@
     var form = document.querySelector('[data-form="' + eventId + '"]');
     if (!form) return;
     var mine = rsvps.filter(function (r) { return r.mine; })[0];
-    if (!mine) return;
+    if (!mine) {
+      // Undo an earlier prefill (e.g. after removing the RSVP), but never
+      // clobber a name the visitor typed themselves.
+      if (form.dataset.prefilled && form.elements.name.value === form.dataset.prefilled) {
+        form.elements.name.value = "";
+        form.elements.response.value = "yes";
+        form.elements.party_size.value = "0";
+        form.querySelector('button[type="submit"]').textContent = "RSVP";
+        delete form.dataset.prefilled;
+      }
+      return;
+    }
     if (!form.elements.name.value) form.elements.name.value = mine.name;
     if (form.elements.name.value === mine.name) {
+      form.dataset.prefilled = mine.name;
       form.elements.response.value = mine.response;
       form.elements.party_size.value = mine.party_size;
       form.querySelector('button[type="submit"]').textContent = "Update RSVP";
