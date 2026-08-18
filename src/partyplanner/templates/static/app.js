@@ -10,13 +10,12 @@
   var me = "";
   var urlMe = new URLSearchParams(location.search).get("me") || "";
   if (KEY_RE.test(urlMe)) me = urlMe;
-  try {
-    if (me) localStorage.setItem(storageKey, me);
-    else {
+  else {
+    try {
       var stored = localStorage.getItem(storageKey) || "";
       if (KEY_RE.test(stored)) me = stored;
-    }
-  } catch (err) { /* storage unavailable: ?me= still works */ }
+    } catch (err) { /* storage unavailable: ?me= still works */ }
+  }
   var isAdmin = false;
 
   function el(tag, className, text) {
@@ -110,6 +109,7 @@
       .then(function (state) {
         isAdmin = !!state.admin;
         document.body.classList.toggle("admin", isAdmin);
+        if (me && me === urlMe && !isAdmin) saveKey(me);
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId]);
           prefillMine(eventId, state.events[eventId]);

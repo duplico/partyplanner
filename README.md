@@ -187,5 +187,8 @@ any unused name (social trust is the moderation model), but changing or
 removing an existing RSVP takes that person's private edit key or the host's
 admin key. Keys are bearer capabilities: the edit link shouldn't be shared,
 and the admin key (committed in `.links.yaml` in your private events repo)
-shouldn't leave the hosts. Hosts can also force-rotate links or edit rows in
-DynamoDB directly.
+shouldn't leave the hosts. Guest edit keys persist in the browser's
+localStorage; the admin key never does — it lives only in the `?me=` URL, so
+close the tab (and mind your history) on a shared machine. Admin edits never
+take ownership of a guest's RSVP. Hosts can also force-rotate links or edit
+rows in DynamoDB directly.

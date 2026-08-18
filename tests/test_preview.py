@@ -170,6 +170,17 @@ def test_store_admin_key_edits_anyone_and_flags_state():
     assert store.state(TOKEN)["admin"] is False
 
 
+def test_store_admin_created_row_stays_claimable():
+    store = PreviewStore(_occasion(admin_key=ADMIN_KEY))
+    result = store.rsvp(
+        {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes", "me": ADMIN_KEY}
+    )
+    assert "me" not in result
+    claimed = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "maybe"})
+    assert TOKEN_RE.match(claimed["me"])
+    assert store.state(TOKEN, me=claimed["me"])["events"]["a"][0]["mine"] is True
+
+
 def test_store_excludes_rsvp_none_events():
     occasion = _occasion(
         events=[

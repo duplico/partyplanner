@@ -7,7 +7,7 @@ Routes (behind CloudFront, same origin as the static site):
 An RSVP row is locked to the edit key minted when it was created (returned as
 `me` and echoed back by the client), so only its owner — or the occasion's
 admin key — can change or remove it. Rows written before edit keys existed
-are claimed by the first write that touches them.
+are claimed by the owner's first write (admin edits never claim a row).
 
 Table layout (single table, on-demand):
   LINK#<token> / META   rsvp_events, prefill_name?, expires_at?
@@ -26,6 +26,7 @@ import re
 import secrets
 
 import boto3
+from botocore.exceptions import ClientError
 
 TOKEN_RE = re.compile(r"^[a-z2-7]{16,64}\Z")
 RESPONSES = ("yes", "maybe", "no")
@@ -178,39 +179,70 @@ def put_rsvp(rsvp: dict) -> dict:
     key = {"pk": f"EVENT#{rsvp['event_id']}", "sk": f"NAME#{rsvp['name'].casefold()}"}
     existing = table().get_item(Key=key, ConsistentRead=True).get("Item")
     owner_key = existing.get("edit_key") if existing else None
+    forbidden = Forbidden("only that RSVP's private edit link (or the host) can remove it")
     if rsvp["remove"]:
         if not (admin or (owner_key and owner_key == me)):
-            raise Forbidden("only that RSVP's private edit link (or the host) can remove it")
-        table().delete_item(Key=key)
+            raise forbidden
+        kwargs: dict = {"Key": key}
+        if not admin:
+            kwargs["ConditionExpression"] = "edit_key = :me"
+            kwargs["ExpressionAttributeValues"] = {":me": me}
+        try:
+            table().delete_item(**kwargs)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                raise forbidden from e
+            raise
         return {"ok": True}
     if owner_key and owner_key != me and not admin:
         raise Forbidden(
             "that name already has an RSVP here — use your private edit link to change it"
         )
-    edit_key = owner_key or (me if me and not admin else mint_key())
+    # Admin edits never claim a row: a keyless row stays claimable by its owner.
+    edit_key = owner_key if admin else (owner_key or me or mint_key())
     now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     update = (
-        "SET #n = :name, #r = :response, party_size = :party_size, edit_key = :edit_key, "
+        "SET #n = :name, #r = :response, party_size = :party_size, "
         "updated_at = :now, via_token = :token, created_at = if_not_exists(created_at, :now)"
     )
     values = {
         ":name": rsvp["name"],
         ":response": rsvp["response"],
         ":party_size": rsvp["party_size"],
-        ":edit_key": edit_key,
         ":now": now,
         ":token": rsvp["token"],
     }
+    if edit_key:
+        update += ", edit_key = :edit_key"
+        values[":edit_key"] = edit_key
     if "expires_at" in link:
         update += ", expires_at = :expires"
         values[":expires"] = link["expires_at"]
-    table().update_item(
-        Key=key,
-        UpdateExpression=update,
-        ExpressionAttributeNames={"#n": "name", "#r": "response"},
-        ExpressionAttributeValues=values,
-    )
-    return {"ok": True, "me": edit_key}
+    kwargs = {}
+    if not admin:
+        if owner_key:
+            kwargs["ConditionExpression"] = "edit_key = :owner"
+            values[":owner"] = owner_key
+        else:
+            kwargs["ConditionExpression"] = "attribute_not_exists(edit_key)"
+    try:
+        table().update_item(
+            Key=key,
+            UpdateExpression=update,
+            ExpressionAttributeNames={"#n": "name", "#r": "response"},
+            ExpressionAttributeValues=values,
+            **kwargs,
+        )
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            raise Forbidden(
+                "that name already has an RSVP here — use your private edit link to change it"
+            ) from e
+        raise
+    result = {"ok": True}
+    if edit_key:
+        result["me"] = edit_key
+    return result
 
 
 def lambda_handler(event: dict, _context: object) -> dict:

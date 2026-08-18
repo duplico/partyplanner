@@ -184,14 +184,18 @@ class PreviewStore:
                 raise PreviewForbidden(
                     "that name already has an RSVP here — use your private edit link to change it"
                 )
-            edit_key = owner_key or (me if me and not admin else mint_token())
+            # Admin edits never claim a row: a keyless row stays claimable by its owner.
+            edit_key = owner_key if admin else (owner_key or me or mint_token())
             self.rsvps[(event_id, name.casefold())] = {
                 "name": name,
                 "response": response,
                 "party_size": party_size,
                 "edit_key": edit_key,
             }
-        return {"ok": True, "me": edit_key}
+        result = {"ok": True}
+        if edit_key:
+            result["me"] = edit_key
+        return result
 
 
 class ReloadState:

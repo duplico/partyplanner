@@ -2,6 +2,7 @@ import json
 
 import handler
 import pytest
+from botocore.exceptions import ClientError
 
 
 def _rsvp_body(**overrides):
@@ -156,23 +157,53 @@ class FakeTable:
         pk = ExpressionAttributeValues[":pk"]
         return {"Items": self.rsvps.get(pk, [])}
 
+    @staticmethod
+    def _condition_failed():
+        return ClientError(
+            {"Error": {"Code": "ConditionalCheckFailedException", "Message": "nope"}},
+            "UpdateItem",
+        )
+
+    def _check_condition(self, row, condition, values):
+        if condition is None:
+            return
+        if condition == "attribute_not_exists(edit_key)":
+            if row is not None and "edit_key" in row:
+                raise self._condition_failed()
+        elif condition == "edit_key = :owner":
+            if row is None or row.get("edit_key") != values[":owner"]:
+                raise self._condition_failed()
+        elif condition == "edit_key = :me":
+            if row is None or row.get("edit_key") != values[":me"]:
+                raise self._condition_failed()
+        else:
+            raise AssertionError(f"unexpected condition {condition!r}")
+
     def update_item(self, **kwargs):
         self.updates.append(kwargs)
         values = kwargs["ExpressionAttributeValues"]
         key = (kwargs["Key"]["pk"], kwargs["Key"]["sk"])
+        self._check_condition(self.rows.get(key), kwargs.get("ConditionExpression"), values)
         row = self.rows.setdefault(key, {"created_at": values[":now"]})
         row.update(
             {
                 "name": values[":name"],
                 "response": values[":response"],
                 "party_size": values[":party_size"],
-                "edit_key": values[":edit_key"],
             }
         )
+        if ":edit_key" in values:
+            row["edit_key"] = values[":edit_key"]
 
-    def delete_item(self, Key):
-        self.deletes.append(Key)
-        self.rows.pop((Key["pk"], Key["sk"]), None)
+    def delete_item(self, **kwargs):
+        key = (kwargs["Key"]["pk"], kwargs["Key"]["sk"])
+        self._check_condition(
+            self.rows.get(key),
+            kwargs.get("ConditionExpression"),
+            kwargs.get("ExpressionAttributeValues", {}),
+        )
+        self.deletes.append(kwargs["Key"])
+        self.rows.pop(key, None)
 
 
 class PagingTable(FakeTable):
@@ -297,6 +328,46 @@ def test_admin_key_edits_and_removes_any_row(monkeypatch):
     handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True, me=ADMIN_KEY)))
     assert table.deletes == [{"pk": "EVENT#bbq", "sk": "NAME#aaron"}]
     assert ("EVENT#bbq", "NAME#aaron") not in table.rows
+
+
+def test_admin_write_does_not_claim_keyless_row(monkeypatch):
+    table = FakeTable(
+        links={**LINKS, f"ADMIN#{ADMIN_KEY}": {"sk": "META"}},
+        rsvps={"EVENT#bbq": [{"name": "Aaron", "response": "maybe", "party_size": 0}]},
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    result = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=ADMIN_KEY)))
+    assert "me" not in result
+    assert "edit_key" not in table.rows[("EVENT#bbq", "NAME#aaron")]
+    # the guest's own next write still claims the row
+    claimed = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == claimed["me"]
+
+
+def test_put_rsvp_lost_race_maps_to_forbidden(monkeypatch):
+    class RacyTable(FakeTable):
+        def get_item(self, Key, ConsistentRead=False):
+            if Key["sk"] != "META":
+                return {}  # reads see no row, but the write finds one
+            return super().get_item(Key, ConsistentRead)
+
+    table = RacyTable(
+        links=LINKS,
+        rsvps={
+            "EVENT#bbq": [
+                {
+                    "name": "Aaron",
+                    "response": "yes",
+                    "party_size": 0,
+                    "edit_key": "fixtureeditkey222222",
+                }
+            ]
+        },
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    with pytest.raises(handler.Forbidden, match="private edit link"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["response"] == "yes"
 
 
 def test_remove_requires_owner_key(monkeypatch):
