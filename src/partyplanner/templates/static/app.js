@@ -218,6 +218,18 @@
         response: form.elements.response.value,
         party_size: parseInt(form.elements.party_size.value || "0", 10),
       };
+      // "Update RSVP" under a changed name is a rename: the old row (same
+      // owner key) is removed once the new one is written. Confirmed first,
+      // since a shared device may instead mean "add someone else".
+      var renameFrom = form.dataset.prefilled || "";
+      if (renameFrom && renameFrom.toLowerCase() !== payload.name.toLowerCase()) {
+        if (!window.confirm(
+          'Rename your RSVP from "' + renameFrom + '" to "' + payload.name +
+          '"?\n\nChoose Cancel to RSVP "' + payload.name + '" separately instead.'
+        )) {
+          renameFrom = "";
+        }
+      }
       enqueueWrite(function () {
         if (me && meVetted) payload.me = me;
         return fetch("/api/rsvp", {
@@ -232,6 +244,23 @@
             if (!data) throw new Error("rsvp failed");
             var minted = data.me && data.me !== me;
             if (data.me && !isAdmin) saveKey(data.me);
+            if (
+              data.me &&
+              renameFrom &&
+              renameFrom.toLowerCase() !== payload.name.toLowerCase()
+            ) {
+              return fetch("/api/rsvp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  token: token,
+                  event_id: eventId,
+                  name: renameFrom,
+                  remove: true,
+                  me: data.me,
+                }),
+              }).then(function () { return minted; });
+            }
             return minted;
           });
         });
@@ -264,5 +293,7 @@
     });
   });
 
-  refresh();
+  // The initial load seeds the write queue, so a submit racing the first
+  // state response can't go out before the URL key is vetted (or dropped).
+  writeQueue = refresh();
 })();
