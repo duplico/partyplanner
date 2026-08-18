@@ -75,18 +75,21 @@ optional end times, per-occasion CSS overrides, and a revoked token.
 
 ## CLI
 
+`[config]` defaults to `occasion.yaml` in the current directory, so you can
+`cd` into an occasion and use the bare commands.
+
 | command | what it does |
 | --- | --- |
-| `partyplanner validate <config>` | validate an occasion config |
-| `partyplanner mint <config>` | fill in missing event ids and link tokens (writes back, preserves comments) |
-| `partyplanner link add <config> --scope <s> --note <n> [--prefill <name>] [--slug <slug>]` | mint a new invitation link into the machine-generated `.links.yaml` |
-| `partyplanner link revoke <config> <token>` | move a generated link's token to `revoked:` (URL 404s on next deploy) |
-| `partyplanner link admin <config>` | print the occasion's admin key (minting one into `.links.yaml` if needed) |
-| `partyplanner link list <config>` | print invitation URLs |
-| `partyplanner preview <config>` | render + serve locally with an in-memory RSVP API; prints a URL per link view |
-| `partyplanner render <config> --out out` | render static site, ICS files, and `links.csv` |
-| `partyplanner links <config>` | print invitation URLs |
-| `partyplanner sync-links <config> --table <name>` | upsert link records to DynamoDB; delete revoked |
+| `partyplanner validate [config]` | validate an occasion config |
+| `partyplanner mint [config]` | fill in missing event ids and link tokens (writes back, preserves comments) |
+| `partyplanner link add [config] --scope <s> --note <n> [--prefill <name>] [--slug <slug>]` | mint a new invitation link into the machine-generated `.links.yaml` |
+| `partyplanner link revoke <token> [config]` | move a generated link's token to `revoked:` (URL 404s on next deploy) |
+| `partyplanner link admin [config]` | print the occasion's admin key (minting one into `.links.yaml` if needed) |
+| `partyplanner link list [config]` | print invitation URLs |
+| `partyplanner preview [config]` | render + serve locally with an in-memory RSVP API; prints a URL per link view |
+| `partyplanner render [config] --out out` | render static site, ICS files, and `links.csv` |
+| `partyplanner links [config]` | print invitation URLs |
+| `partyplanner sync-links [config] --table <name>` | upsert link records to DynamoDB; delete revoked |
 | `partyplanner export-rsvps --table <name>` | dump all RSVPs as CSV |
 | `partyplanner init ...` | set up an events repo: bootstrap Terraform root + `partyplanner.yaml` (see [docs/bootstrapping.md](docs/bootstrapping.md)) |
 | `partyplanner new <name> ...` | generate an occasion capsule (config stub, Terraform root, workflows) |
@@ -98,7 +101,7 @@ links**.
 Links are managed with `partyplanner link add`/`revoke`, which write a
 machine-generated `.links.yaml` next to the occasion config (commit it; you
 hand-author `events:` and `scopes:`, the tool owns the links). To rotate a
-leaked link: `partyplanner link revoke <config> <token>`, then `link add` a
+leaked link: `partyplanner link revoke <token>`, then `link add` a
 replacement and redeploy. A `links:` section in the occasion config itself
 still works and is merged in for back-compat.
 

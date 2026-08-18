@@ -279,6 +279,10 @@ def load_raw(path: Path) -> CommentedMap:
             data = yaml.load(f)
     except YAMLError as e:
         raise ConfigError(f"{path}: invalid YAML: {e}") from e
+    except UnicodeDecodeError as e:
+        raise ConfigError(f"{path}: not a text file (expected YAML)") from e
+    except OSError as e:
+        raise ConfigError(f"{path}: {e.strerror or e}") from e
     if not isinstance(data, CommentedMap):
         raise ConfigError(f"{path}: expected a YAML mapping at the top level")
     return data
