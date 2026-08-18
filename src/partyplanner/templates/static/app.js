@@ -109,7 +109,10 @@
       .then(function (state) {
         isAdmin = !!state.admin;
         document.body.classList.toggle("admin", isAdmin);
-        if (me && me === urlMe && !isAdmin) saveKey(me);
+        var ownsARow = Object.keys(state.events).some(function (eventId) {
+          return state.events[eventId].some(function (r) { return r.mine; });
+        });
+        if (me && me === urlMe && !isAdmin && ownsARow) saveKey(me);
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId]);
           prefillMine(eventId, state.events[eventId]);

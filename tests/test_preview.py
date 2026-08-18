@@ -163,7 +163,7 @@ def test_store_admin_key_edits_anyone_and_flags_state():
     result = store.rsvp(
         {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "no", "me": ADMIN_KEY}
     )
-    assert result["me"] != ADMIN_KEY  # the row keeps its own edit key
+    assert "me" not in result  # never echo the guest's key to the admin
     state = store.state(TOKEN, me=ADMIN_KEY)
     assert state["admin"] is True
     assert state["events"]["a"][0]["response"] == "no"

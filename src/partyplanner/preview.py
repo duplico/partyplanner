@@ -193,7 +193,7 @@ class PreviewStore:
                 "edit_key": edit_key,
             }
         result = {"ok": True}
-        if edit_key:
+        if edit_key and not admin:
             result["me"] = edit_key
         return result
 

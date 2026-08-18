@@ -240,7 +240,7 @@ def put_rsvp(rsvp: dict) -> dict:
             ) from e
         raise
     result = {"ok": True}
-    if edit_key:
+    if edit_key and not admin:
         result["me"] = edit_key
     return result
 

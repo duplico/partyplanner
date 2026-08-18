@@ -324,7 +324,8 @@ def test_admin_key_edits_and_removes_any_row(monkeypatch):
     monkeypatch.setattr(handler, "table", lambda: table)
     owner = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
     edited = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=ADMIN_KEY)))
-    assert edited["me"] == owner["me"]  # the row keeps the owner's key
+    assert "me" not in edited  # never echo the guest's key to the admin
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == owner["me"]
     handler.put_rsvp(handler.parse_rsvp(_rsvp_body(remove=True, me=ADMIN_KEY)))
     assert table.deletes == [{"pk": "EVENT#bbq", "sk": "NAME#aaron"}]
     assert ("EVENT#bbq", "NAME#aaron") not in table.rows
