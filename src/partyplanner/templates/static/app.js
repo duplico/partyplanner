@@ -57,6 +57,15 @@
     return location.origin + location.pathname + "?me=" + me;
   }
 
+  // Writes run one at a time, so a second keyless submit reuses the key
+  // minted by the first instead of minting a second identity.
+  var writeQueue = Promise.resolve();
+  function enqueueWrite(fn) {
+    var run = writeQueue.then(fn, fn);
+    writeQueue = run.catch(function () {});
+    return run;
+  }
+
   // Reads a JSON body if there is one; non-JSON bodies (edge error pages,
   // empty responses) become null rather than a parse error.
   function jsonBody(res) {
@@ -68,11 +77,13 @@
   function removeRsvp(eventId, name, status) {
     if (!window.confirm("Remove " + name + "'s RSVP?")) return;
     var payload = { token: token, event_id: eventId, name: name, remove: true };
-    if (me && meVetted) payload.me = me;
-    fetch("/api/rsvp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    enqueueWrite(function () {
+      if (me && meVetted) payload.me = me;
+      return fetch("/api/rsvp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
     })
       .then(function (res) {
         return jsonBody(res).then(function (data) {
@@ -146,9 +157,13 @@
     }
     if (!form.elements.name.value) form.elements.name.value = mine.name;
     if (form.elements.name.value === mine.name) {
+      // Only fill response/party_size the first time this row appears —
+      // a later refresh must not revert choices typed but not yet submitted.
+      if (form.dataset.prefilled !== mine.name) {
+        form.elements.response.value = mine.response;
+        form.elements.party_size.value = mine.party_size;
+      }
       form.dataset.prefilled = mine.name;
-      form.elements.response.value = mine.response;
-      form.elements.party_size.value = mine.party_size;
       form.querySelector('button[type="submit"]').textContent = "Update RSVP";
     }
   }
@@ -203,13 +218,13 @@
         response: form.elements.response.value,
         party_size: parseInt(form.elements.party_size.value || "0", 10),
       };
-      if (me && meVetted) payload.me = me;
-      fetch("/api/rsvp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-        .then(function (res) {
+      enqueueWrite(function () {
+        if (me && meVetted) payload.me = me;
+        return fetch("/api/rsvp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).then(function (res) {
           return jsonBody(res).then(function (data) {
             if (!res.ok) {
               throw new Error(data && data.error ? data.error : "rsvp failed");
@@ -217,20 +232,24 @@
             if (!data) throw new Error("rsvp failed");
             var minted = data.me && data.me !== me;
             if (data.me && !isAdmin) saveKey(data.me);
-            if (status) {
-              status.textContent = form.elements.response.value === "yes"
-                ? "Got it — see you there!"
-                : "Got it — RSVP saved.";
-              if (minted && !isAdmin) {
-                status.textContent += " To change it later, ";
-                var a = el("a", null, "bookmark your private edit link");
-                a.href = editUrl();
-                status.appendChild(a);
-                status.appendChild(document.createTextNode(" — it works for every event here, so don't share it."));
-              }
-            }
-            return refresh();
+            return minted;
           });
+        });
+      })
+        .then(function (minted) {
+          if (status) {
+            status.textContent = form.elements.response.value === "yes"
+              ? "Got it — see you there!"
+              : "Got it — RSVP saved.";
+            if (minted && !isAdmin) {
+              status.textContent += " To change it later, ";
+              var a = el("a", null, "bookmark your private edit link");
+              a.href = editUrl();
+              status.appendChild(a);
+              status.appendChild(document.createTextNode(" — it works for every event here, so don't share it."));
+            }
+          }
+          return refresh();
         })
         .catch(function (err) {
           if (status) {
