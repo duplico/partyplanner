@@ -324,6 +324,16 @@ rung 2/3 risk:
    needs it to be.
 5. **Licensing**, if rung 3 is ever real.
 
+## Filed issues
+
+| Rung | Issue |
+|---|---|
+| 0 | #28 cohost PRs: friendly validation + a preview site |
+| 1 | #29 editor keys (`EDITOR#<key>`), #30 `modules/editor`, #31 photo uploads |
+| prep | #32 tenant-prefixed keys, #33 core/ops split + render harness |
+| 2 | #34 multi-tenant hosting plane (spike) |
+| 3 | #35 content as data / re-render on save, #36 delivery, billing, legal, ops, licensing |
+
 ## Non-goals
 
 Explicitly not proposed, so they don't get re-litigated:
