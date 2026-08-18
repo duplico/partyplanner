@@ -6,8 +6,8 @@ Routes (behind CloudFront, same origin as the static site):
 
 An RSVP row is locked to the edit key minted when it was created (returned as
 `me` and echoed back by the client), so only its owner — or the occasion's
-admin key — can change or remove it. Rows written before edit keys existed
-are claimed by the owner's first write (admin edits never claim a row).
+admin key — can change or remove it. Keyless rows (host-entered, or written
+before edit keys existed) are host-only; admin writes never bind a key.
 
 Table layout (single table, on-demand):
   CONFIG#OCCASION / META  max_rsvps_per_event, expires_at?  (synced by sync-links)
@@ -228,7 +228,10 @@ def put_rsvp(rsvp: dict) -> dict:
                 raise forbidden from e
             raise
         return {"ok": True}
-    if owner_key and owner_key != me and not admin:
+    # Only the row's owner key or the host may touch an existing row; a
+    # keyless (host-entered) row is host-only. The message is the same either
+    # way so it doesn't reveal whether a row is host-entered.
+    if existing is not None and not admin and (not owner_key or owner_key != me):
         raise Forbidden(
             "that name already has an RSVP here — use your private edit link to change it"
         )
@@ -236,7 +239,6 @@ def put_rsvp(rsvp: dict) -> dict:
         cap = max_event_rsvps()
         if len(event_rows(rsvp["event_id"], cap)) >= cap:
             raise BadRequest("this event's RSVP list is full")
-    # Admin edits never claim a row: a keyless row stays claimable by its owner.
     # A supplied key binds to a new row only if this occasion minted it;
     # anything else gets a fresh mint, recorded so the key stays honored
     # even after its last row is removed.
@@ -274,7 +276,7 @@ def put_rsvp(rsvp: dict) -> dict:
             kwargs["ConditionExpression"] = "edit_key = :owner"
             values[":owner"] = owner_key
         else:
-            kwargs["ConditionExpression"] = "attribute_not_exists(edit_key)"
+            kwargs["ConditionExpression"] = "attribute_not_exists(pk)"
     try:
         table().update_item(
             Key=key,

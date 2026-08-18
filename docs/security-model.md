@@ -31,10 +31,9 @@ invariant here is a bug, and any proposed change should be checked against it.
 | Action | Requires |
 |---|---|
 | View pages / RSVP lists in a scope | invitation token |
-| Create an RSVP under an unclaimed name | invitation token |
+| Create an RSVP under an unused name | invitation token |
 | Modify/remove an RSVP with an edit key | that edit key, or the admin key |
-| Modify/claim a **keyless** RSVP | invitation token (first ordinary write claims it) or admin key (never claims) |
-| Remove a **keyless** RSVP | admin key only (an ordinary writer must claim it first) |
+| Modify/remove a **keyless** (host-entered) RSVP | admin key only |
 
 ## Invariants
 
@@ -58,8 +57,9 @@ invariant here is a bug, and any proposed change should be checked against it.
 4. Modifying or removing a keyed row requires its edit key or the admin key,
    enforced with DynamoDB condition expressions — a read-then-write race
    cannot bypass ownership.
-5. The admin key may modify or remove any row but **never claims one**: rows
-   it creates or edits stay keyless so the real guest can claim them.
+5. The admin key may modify or remove any row but **never binds a key**: rows
+   it creates or edits stay keyless, and keyless rows are host-only — for a
+   guest to own the entry, the host removes it and the guest re-RSVPs.
 6. Admin authority exists only while the `ADMIN#<key>` metadata record is
    synced; an unsynced admin key has no authority anywhere.
 
@@ -119,10 +119,12 @@ invariant here is a bug, and any proposed change should be checked against it.
   where writes carry `me` — are never logged. Accepted rather than moving to
   a header, which would complicate CloudFront origin request handling for
   little gain in the current logging posture.
-- **Keyless-row claims.** Pre-upgrade rows and host-entered rows are claimable
-  by the first ordinary write from a link-holder. The alternative (locking
-  them) would strand guests whose RSVP the host typed in for them. The host
-  can always repair a hijacked row.
+- **Keyless rows need the host to hand over.** Host-entered (and pre-upgrade)
+  rows are host-only: a guest can't take over an RSVP the host typed in for
+  them until the host removes it and they re-RSVP. Chosen over first-write
+  claiming, which let any link-holder grab a host-entered row. The rejection
+  message is the same as for someone else's keyed row, so it doesn't reveal
+  which rows are host-entered.
 
 
 ## Checklist for changes
@@ -132,6 +134,6 @@ Before merging anything touching RSVP or key flows, confirm:
 - [ ] No raw key added to any state/read response or rendered output.
 - [ ] Every new mutation path enforces ownership with a condition expression.
 - [ ] Any new client-side use of `me` respects the vetting rule (invariant 12).
-- [ ] Admin responses still echo no key; admin writes still never claim rows.
+- [ ] Admin responses still echo no key; admin writes still never bind keys.
 - [ ] Preview (`preview.py`) and Lambda (`handler.py`) semantics stay in lockstep.
 - [ ] Tests cover the new path's unauthorized case, not just the happy path.
