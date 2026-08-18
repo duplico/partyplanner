@@ -259,18 +259,25 @@
                   remove: true,
                   me: data.me,
                 }),
-              }).then(function () { return minted; });
+              }).then(
+                function (rmRes) { return { minted: minted, oldLeft: !rmRes.ok }; },
+                function () { return { minted: minted, oldLeft: true }; }
+              );
             }
-            return minted;
+            return { minted: minted, oldLeft: false };
           });
         });
       })
-        .then(function (minted) {
+        .then(function (result) {
           if (status) {
             status.textContent = form.elements.response.value === "yes"
               ? "Got it — see you there!"
               : "Got it — RSVP saved.";
-            if (minted && !isAdmin) {
+            if (result.oldLeft) {
+              status.textContent += ' But "' + renameFrom +
+                '" couldn\'t be removed — it\'s still listed; use its remove button.';
+            }
+            if (result.minted && !isAdmin) {
               status.textContent += " To change it later, ";
               var a = el("a", null, "bookmark your private edit link");
               a.href = editUrl();
