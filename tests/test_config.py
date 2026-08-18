@@ -18,10 +18,12 @@ def test_load_bbq_fixture():
 def test_load_allhallowtide_fixture():
     occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
     assert occasion.event_ids() == ["dinner", "crawl", "candy", "party", "stream", "brunch"]
-    aaron, chance, generic, stream = occasion.links
+    aaron, chance, generic, stream, visitors = occasion.links
     assert occasion.resolve_scope(aaron) == tuple(occasion.event_ids())
     assert occasion.resolve_scope(chance) == ("candy", "party", "stream")
     assert occasion.resolve_scope(stream) == ("stream",)
+    assert visitors.token == "visitors-fixture222"
+    assert occasion.resolve_scope(visitors) == tuple(occasion.event_ids())
     assert occasion.rsvp_open_ids() == {"dinner", "crawl", "candy", "party", "brunch"}
 
 
@@ -152,6 +154,18 @@ def test_mint_fills_explicit_null_id_and_token(tmp_path: Path):
 def test_token_over_64_chars_rejected():
     with pytest.raises(ConfigError, match="token"):
         config.parse(_minimal(links=[{"token": "a" * 65, "scope": "all"}]))
+
+
+def test_slugged_token_accepted():
+    occasion = config.parse(
+        _minimal(links=[{"token": "out-of-towners-a7k2m6qexz", "scope": "all"}])
+    )
+    assert occasion.links[0].token == "out-of-towners-a7k2m6qexz"
+
+
+def test_token_tail_under_10_chars_rejected():
+    with pytest.raises(ConfigError, match="token"):
+        config.parse(_minimal(links=[{"token": "visitors-a7k2m6qex", "scope": "all"}]))
 
 
 def test_overlong_prefill_name_rejected():

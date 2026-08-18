@@ -10,7 +10,7 @@ invariant here is a bug, and any proposed change should be checked against it.
 | Asset | Sensitivity |
 |---|---|
 | RSVP data (names, responses, party sizes) | Semi-public: visible to everyone holding an invitation link in scope |
-| Invitation token (`/i/<token>/`) | Secret shared with an audience; leaking it exposes the pages and RSVP lists in its scope |
+| Invitation token (`/i/<slug>-<token>/`) | Secret shared with an audience; leaking it exposes the pages and RSVP lists in its scope |
 | Guest edit key (`?me=<key>`) | Private to one person; controls all of that person's RSVPs across the occasion |
 | Admin key | Private to the host; controls every RSVP in the occasion |
 | AWS/deploy credentials | Out of scope here (covered by OIDC bootstrap docs) |
@@ -39,8 +39,13 @@ invariant here is a bug, and any proposed change should be checked against it.
 
 **Key lifecycle**
 
-1. Keys are 96-bit `secrets`-random base32; format-validated (`^[a-z2-7]{16,64}$`)
-   everywhere they cross a trust boundary.
+1. Edit/admin keys are 96-bit `secrets`-random base32; format-validated
+   (`^[a-z2-7]{16,64}$`) everywhere they cross a trust boundary. Invitation
+   tokens are lower-stakes (see the assets table) and trade entropy for
+   readability: an optional host-chosen slug plus a 50-bit `secrets`-random
+   base32 tail (`visitors-a7k2m6qexz`). The slug carries no authority; the
+   50-bit tail alone makes enumeration uneconomical (~10^15 guesses), and
+   what a leak exposes is already an accepted residual below.
 2. Keys are only ever minted by the server or the `partyplanner` CLI. Every
    mint writes a `KEY#<key>` metadata record; a client-supplied key binds to
    a new row only if that record exists (i.e. this occasion minted it), and

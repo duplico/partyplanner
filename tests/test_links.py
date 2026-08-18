@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -80,6 +81,30 @@ def test_add_link_creates_file_and_appends(tmp_path: Path):
     assert [link.token for link in occasion.links] == [first.token, second.token]
     assert occasion.resolve_scope(occasion.links[1]) == ("bonfire",)
     config.require_complete(occasion)
+
+
+def test_add_link_with_slug_prefixes_token(tmp_path: Path):
+    src = _config(tmp_path)
+    link = config.add_link(src, "all", note="visitors", slug="visitors")
+    assert link.token is not None
+    assert re.match(r"^visitors-[a-z2-7]{10}\Z", link.token)
+    occasion = config.load(src)
+    assert [x.token for x in occasion.links] == [link.token]
+    config.require_complete(occasion)
+
+
+def test_add_link_without_slug_mints_bare_token(tmp_path: Path):
+    src = _config(tmp_path)
+    link = config.add_link(src, "all")
+    assert link.token is not None
+    assert re.match(r"^[a-z2-7]{10}\Z", link.token)
+
+
+@pytest.mark.parametrize("slug", ["", "Visitors", "two--hyphens", "-lead", "trail-", "a" * 41])
+def test_add_link_rejects_bad_slug(tmp_path: Path, slug: str):
+    src = _config(tmp_path)
+    with pytest.raises(ConfigError, match="slug"):
+        config.add_link(src, "all", slug=slug)
 
 
 def test_load_merges_admin_key_from_links_file(tmp_path: Path):

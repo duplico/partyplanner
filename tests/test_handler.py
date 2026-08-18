@@ -55,7 +55,10 @@ def test_parse_rsvp_remove_skips_response_fields():
         {"party_size": 11},
         {"party_size": "2"},
         {"party_size": True},
+        {"token": "-leading-hyphen22"},
+        {"token": "x" * 81},
         {"me": "SHOUTING-NOT-A-KEY"},
+        {"me": "visitors-a7k2m6qexz"},  # slugged link tokens are never keys
         {"me": 42},
         {"remove": "yes"},
     ],
@@ -63,6 +66,11 @@ def test_parse_rsvp_remove_skips_response_fields():
 def test_parse_rsvp_rejects(overrides):
     with pytest.raises(handler.BadRequest):
         handler.parse_rsvp(_rsvp_body(**overrides))
+
+
+def test_parse_rsvp_accepts_slugged_token():
+    parsed = handler.parse_rsvp(_rsvp_body(token="visitors-a7k2m6qexz"))
+    assert parsed["token"] == "visitors-a7k2m6qexz"
 
 
 def _event(method, path, body=None, query=None):
@@ -432,7 +440,7 @@ def test_put_rsvp_mints_and_reuses_edit_key(monkeypatch):
     table = FakeTable(links=LINKS)
     monkeypatch.setattr(handler, "table", lambda: table)
     first = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
-    assert handler.TOKEN_RE.match(first["me"])
+    assert handler.KEY_RE.match(first["me"])
     assert table.links[f"KEY#{first['me']}"] == {"pk": f"KEY#{first['me']}", "sk": "META"}
     # the owner's key updates the row and spans other events under the link
     same = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(response="no", me=first["me"])))
@@ -487,7 +495,7 @@ def test_unknown_key_never_binds_to_new_row(monkeypatch):
     chosen = "strangerchosenkey222"
     fresh = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(me=chosen)))
     assert fresh["me"] != chosen
-    assert handler.TOKEN_RE.match(fresh["me"])
+    assert handler.KEY_RE.match(fresh["me"])
     assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == fresh["me"]
 
 

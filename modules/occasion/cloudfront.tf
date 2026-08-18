@@ -77,7 +77,7 @@ resource "aws_cloudfront_function" "index_rewrite" {
       var uri = request.uri;
       if (uri.endsWith('/')) {
         request.uri = uri + 'index.html';
-      } else if (/^\/i\/[a-z2-7]{16,64}$/.test(uri)) {
+      } else if (/^\/i\/[a-z0-9][a-z0-9-]{9,79}$/.test(uri)) {
         // Only ?me=<key> is meaningful on invitation pages; forwarding just
         // that (validated) avoids echoing arbitrary viewer input in a header.
         var qsMe = request.querystring.me;

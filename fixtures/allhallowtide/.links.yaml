@@ -13,5 +13,8 @@ links:
   - token: fixturestreamonly222
     scope: [stream]
     note: stream-only spectators
+  - token: visitors-fixture222
+    scope: full
+    note: slugged link for out-of-towners
 revoked:
   - fixturerevokedtoken2

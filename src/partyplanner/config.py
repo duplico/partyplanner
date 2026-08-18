@@ -11,7 +11,16 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.error import YAMLError
 
-from .tokens import TOKEN_RE, derive_id, mint_token
+from .tokens import (
+    KEY_RE,
+    MAX_SLUG,
+    MAX_TOKEN,
+    SLUG_RE,
+    TOKEN_RE,
+    derive_id,
+    mint_key,
+    mint_token,
+)
 
 yaml = YAML()
 yaml.preserve_quotes = True
@@ -124,8 +133,11 @@ class Link(BaseModel):
     @field_validator("token")
     @classmethod
     def _check_token(cls, v: str | None) -> str | None:
-        if v is not None and not TOKEN_RE.match(v):
-            raise ValueError(f"token {v!r} is not lowercase base32 of 16-64 chars")
+        if v is not None and (len(v) > MAX_TOKEN or not TOKEN_RE.match(v)):
+            raise ValueError(
+                f"token {v!r} must be an optional slug plus a lowercase base32 tail "
+                "of at least 10 chars (e.g. visitors-a7k2m6qexz)"
+            )
         return v
 
     @field_validator("prefill_name")
@@ -160,7 +172,7 @@ class Occasion(BaseModel):
     @field_validator("admin_key")
     @classmethod
     def _check_admin_key(cls, v: str | None) -> str | None:
-        if v is not None and not TOKEN_RE.match(v):
+        if v is not None and not KEY_RE.match(v):
             raise ValueError(f"admin_key {v!r} is not lowercase base32 of 16-64 chars")
         return v
 
@@ -177,8 +189,8 @@ class Occasion(BaseModel):
     @classmethod
     def _check_revoked(cls, v: list[str]) -> list[str]:
         for t in v:
-            if not TOKEN_RE.match(t):
-                raise ValueError(f"revoked token {t!r} is not lowercase base32 of 16-64 chars")
+            if len(t) > MAX_TOKEN or not TOKEN_RE.match(t):
+                raise ValueError(f"revoked token {t!r} is not a valid link token")
         dupes = {t for t in v if v.count(t) > 1}
         if dupes:
             raise ValueError(f"duplicate revoked tokens: {sorted(dupes)}")
@@ -319,13 +331,19 @@ def add_link(
     scope: str | list[str],
     note: str | None = None,
     prefill_name: str | None = None,
+    slug: str | None = None,
 ) -> Link:
     """Mint a new link into the links file next to the config. Returns the link."""
     if isinstance(scope, list) and not scope:
         raise ConfigError("scope must not be empty")
+    if slug is not None and (len(slug) > MAX_SLUG or not SLUG_RE.match(slug)):
+        raise ConfigError(
+            f"slug {slug!r} must be 1-{MAX_SLUG} chars of lowercase letters, digits, "
+            "and single hyphens (e.g. visitors)"
+        )
     occasion = load(config_path)
     try:
-        link = Link(token=mint_token(), scope=scope, prefill_name=prefill_name, note=note)
+        link = Link(token=mint_token(slug), scope=scope, prefill_name=prefill_name, note=note)
         occasion.resolve_scope(link)
     except ValueError as e:
         raise ConfigError(str(e)) from e
@@ -370,7 +388,7 @@ def ensure_admin_key(config_path: Path) -> tuple[str, bool]:
     data = _load_links_raw(links_path) if links_path.exists() else CommentedMap()
     if not links_path.exists():
         data.yaml_set_start_comment(LINKS_HEADER)
-    key = mint_token()
+    key = mint_key()
     data["admin_key"] = key
     original = links_path.read_text() if links_path.exists() else None
     with links_path.open("w") as f:

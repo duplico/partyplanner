@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlsplit
 from .aws import link_items
 from .config import ConfigError, Occasion, load
 from .render import render
-from .tokens import TOKEN_RE, derive_id, mint_token
+from .tokens import KEY_RE, derive_id, mint_key, mint_token
 
 RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
@@ -75,7 +75,7 @@ def completed(occasion: Occasion, previous: Occasion | None = None) -> tuple[Occ
         if previous is None:
             notes.append("no links in config: added a preview-only link with scope `all`")
     if data["admin_key"] is None:
-        data["admin_key"] = previous.admin_key if previous is not None else mint_token()
+        data["admin_key"] = previous.admin_key if previous is not None else mint_key()
         if previous is None:
             notes.append("no admin key: using a preview-only one")
     return Occasion.model_validate(data), notes
@@ -169,7 +169,7 @@ class PreviewStore:
         if not 1 <= len(name) <= MAX_NAME or not name.isprintable():
             raise PreviewError(f"name must be 1-{MAX_NAME} printable characters")
         me = body.get("me")
-        if me is not None and (not isinstance(me, str) or not TOKEN_RE.match(me)):
+        if me is not None and (not isinstance(me, str) or not KEY_RE.match(me)):
             raise PreviewError("bad me")
         admin = me in self.admin_keys
         remove = body.get("remove", False)
@@ -220,7 +220,7 @@ class PreviewStore:
             elif me and me in self.minted_keys:
                 edit_key = me
             else:
-                edit_key = mint_token()
+                edit_key = mint_key()
                 self.minted_keys.add(edit_key)
             self.rsvps[(event_id, name.casefold())] = {
                 "name": name,
@@ -278,7 +278,7 @@ class PreviewHandler(SimpleHTTPRequestHandler):
                 params = parse_qs(url.query)
                 token = params.get("t", [""])[0]
                 me = params.get("me", [""])[0]
-                if me and not TOKEN_RE.match(me):
+                if me and not KEY_RE.match(me):
                     me = ""
                 try:
                     self._json(200, self.store.state(token, me))
