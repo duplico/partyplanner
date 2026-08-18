@@ -45,16 +45,62 @@
   // Adopts a key for this visit; persists it unless it was borrowed from the
   // URL while this browser already saved a different key of its own —
   // opening someone else's edit link never replaces the visitor's identity.
+  // Returns whether this browser durably holds an identity afterwards.
   function saveKey(key) {
     me = key;
     var saved = "";
     try { saved = localStorage.getItem(storageKey) || ""; } catch (err) { /* ignore */ }
-    if (urlMe && key === urlMe && KEY_RE.test(saved) && saved !== key) return;
-    try { localStorage.setItem(storageKey, key); } catch (err) { /* ignore */ }
+    if (urlMe && key === urlMe && KEY_RE.test(saved) && saved !== key) return true;
+    try {
+      localStorage.setItem(storageKey, key);
+      return localStorage.getItem(storageKey) === key;
+    } catch (err) {
+      return false;
+    }
   }
 
   function editUrl() {
     return location.origin + location.pathname + "?me=" + me;
+  }
+
+  // Leaving host mode is just reloading without ?me= — admin keys are never
+  // saved, so the plain URL renders the ordinary guest view.
+  function renderAdminBanner() {
+    var banner = document.querySelector(".admin-banner");
+    if (!isAdmin) {
+      if (banner) banner.remove();
+      return;
+    }
+    if (banner) return;
+    banner = el("div", "admin-banner", "Host mode — you can edit or remove anyone's RSVP. ");
+    var leave = el("a", null, "Leave host mode");
+    var params = new URLSearchParams(location.search);
+    params.delete("me");
+    var qs = params.toString();
+    leave.href = location.pathname + (qs ? "?" + qs : "") + location.hash;
+    banner.appendChild(leave);
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+
+  // A visitor whose identity this browser holds always sees their private
+  // edit link, so the post-RSVP bookmark offer isn't the only chance to
+  // copy it.
+  function renderMeLink(known) {
+    var note = document.querySelector(".me-link");
+    var saved = "";
+    try { saved = localStorage.getItem(storageKey) || ""; } catch (err) { /* ignore */ }
+    if (isAdmin || !known || !me || !meVetted || me !== saved) {
+      if (note) note.remove();
+      return;
+    }
+    if (!note) {
+      note = el("div", "me-link");
+      note.appendChild(document.createTextNode("Your "));
+      note.appendChild(el("a", null, "private edit link"));
+      note.appendChild(document.createTextNode(" — bookmark it to change your RSVPs from any device; don't share it."));
+      document.body.insertBefore(note, document.body.firstChild);
+    }
+    note.querySelector("a").href = editUrl();
   }
 
   // Writes run one at a time, so a second keyless submit reuses the key
@@ -191,6 +237,8 @@
         }
         meVetted = true;
         if (me && me === urlMe && !isAdmin) saveKey(me);
+        renderAdminBanner();
+        renderMeLink(!!state.known);
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId], (state.more || {})[eventId] || 0);
           prefillMine(eventId, state.events[eventId]);
@@ -252,7 +300,8 @@
             }
             if (!data) throw new Error("rsvp failed");
             var minted = data.me && data.me !== me;
-            if (data.me && !isAdmin) saveKey(data.me);
+            var held = true;
+            if (data.me && !isAdmin) held = saveKey(data.me);
             if (
               data.me &&
               renameFrom &&
@@ -269,11 +318,11 @@
                   me: data.me,
                 }),
               }).then(
-                function (rmRes) { return { minted: minted, oldLeft: !rmRes.ok }; },
-                function () { return { minted: minted, oldLeft: true }; }
+                function (rmRes) { return { minted: minted, held: held, oldLeft: !rmRes.ok }; },
+                function () { return { minted: minted, held: held, oldLeft: true }; }
               );
             }
-            return { minted: minted, oldLeft: false };
+            return { minted: minted, held: held, oldLeft: false };
           });
         });
       })
@@ -287,11 +336,20 @@
                 '" couldn\'t be removed — it\'s still listed; use its remove button.';
             }
             if (result.minted && !isAdmin) {
-              status.textContent += " To change it later, ";
               var a = el("a", null, "bookmark your private edit link");
               a.href = editUrl();
-              status.appendChild(a);
-              status.appendChild(document.createTextNode(" — it works for every event here, so don't share it."));
+              if (result.held) {
+                status.textContent += " To change it later, ";
+                status.appendChild(a);
+                status.appendChild(document.createTextNode(" — it works for every event here, so don't share it."));
+              } else {
+                // Storage is blocked, so the address bar has to carry the
+                // identity: put the key in the URL and insist on the bookmark.
+                try { history.replaceState(null, "", editUrl()); urlMe = me; } catch (err) { /* ignore */ }
+                status.textContent += " This browser can't remember your RSVP, so ";
+                status.appendChild(a);
+                status.appendChild(document.createTextNode(" now — it's your only way to change it later; don't share it."));
+              }
             }
           }
           return refresh();
