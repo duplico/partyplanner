@@ -63,8 +63,9 @@
     return location.origin + location.pathname + "?me=" + me;
   }
 
-  // Leaving host mode is just reloading without ?me= — admin keys are never
-  // saved, so the plain URL renders the ordinary guest view.
+  // Leaving host mode is a privilege downgrade, so nothing carries across it:
+  // the link goes to the bare path — no query, no fragment — and admin keys
+  // are never saved, so it renders the ordinary guest view.
   function renderAdminBanner() {
     var banner = document.querySelector(".admin-banner");
     if (!isAdmin) {
@@ -74,10 +75,7 @@
     if (banner) return;
     banner = el("div", "admin-banner", "Host mode — you can edit or remove anyone's RSVP. ");
     var leave = el("a", null, "Leave host mode");
-    var params = new URLSearchParams(location.search);
-    params.delete("me");
-    var qs = params.toString();
-    leave.href = location.pathname + (qs ? "?" + qs : "") + location.hash;
+    leave.href = location.pathname;
     banner.appendChild(leave);
     document.body.insertBefore(banner, document.body.firstChild);
   }
