@@ -89,8 +89,9 @@ def test_sync_links_replaces_stale_admin_key(monkeypatch):
     import boto3
 
     monkeypatch.setattr(boto3, "resource", lambda service: _Resource())
-    aws.sync_links(occasion, "t")
+    active, _ = aws.sync_links(occasion, "t")
 
+    assert active == len(occasion.links)  # admin metadata is not an invitation link
     assert {"pk": "ADMIN#fixtureadminkey22222", "sk": "META"} in [
         {"pk": p["pk"], "sk": p["sk"]} for p in fake.puts
     ]
