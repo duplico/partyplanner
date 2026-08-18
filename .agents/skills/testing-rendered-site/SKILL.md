@@ -62,7 +62,7 @@ reloads but not process restarts.
   localStorage, or use each window's own devtools (F12) instead.
 - Identity-UX behaviors (if the branch has them): host mode renders a JS
   `.admin-banner` div with a "Leave host mode" link (href = URL minus `me`);
-  a persistent `.me-link` note is appended at the end of `<main>` only when
+  a persistent `.me-link` banner is inserted at the top of `<body>` only when
   the browser's own saved key is the active, vetted, server-known identity —
   it must be absent for fresh visitors, in admin mode, and on borrowed `?me=`
   links (a borrowed URL key also never overwrites the saved identity).
