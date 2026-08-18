@@ -58,6 +58,16 @@ h1 { font-size: 2rem; margin: 0.75rem 0 0.25rem; }
 .event-blurb ul, .event-blurb ol, .blurb ul, .blurb ol { margin: 0.25rem 0 0.6rem; padding-left: 1.3rem; }
 .event-blurb :last-child, .blurb :last-child { margin-bottom: 0; }
 .event-blurb a, .blurb a { color: var(--accent); }
+/* Markdown headings inside blurbs sit under the card/page title */
+.event-blurb h1, .event-blurb h2, .event-blurb h3, .event-blurb h4,
+.event-blurb h5, .event-blurb h6, .blurb h1, .blurb h2, .blurb h3,
+.blurb h4, .blurb h5, .blurb h6 { color: var(--ink); }
+.event-blurb h1, .blurb h1 { font-size: 1.2rem; margin: 0.9rem 0 0.25rem; }
+.event-blurb h2, .blurb h2 { font-size: 1.05rem; margin: 0.75rem 0 0.2rem; }
+.event-blurb h3, .blurb h3,
+.event-blurb h4, .blurb h4,
+.event-blurb h5, .blurb h5,
+.event-blurb h6, .blurb h6 { font-size: 1rem; margin: 0.6rem 0 0.2rem; }
 
 .rsvp { border-top: 1px solid #eee7de; margin-top: 1rem; padding-top: 0.75rem; }
 .rsvp h3 { margin: 0 0 0.5rem; font-size: 1rem; }
