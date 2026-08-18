@@ -55,6 +55,14 @@
     return location.origin + location.pathname + "?me=" + me;
   }
 
+  // Reads a JSON body if there is one; non-JSON bodies (edge error pages,
+  // empty responses) become null rather than a parse error.
+  function jsonBody(res) {
+    return res.text().then(function (text) {
+      try { return JSON.parse(text); } catch (err) { return null; }
+    });
+  }
+
   function removeRsvp(eventId, name, status) {
     if (!window.confirm("Remove " + name + "'s RSVP?")) return;
     var payload = { token: token, event_id: eventId, name: name, remove: true };
@@ -65,10 +73,11 @@
       body: JSON.stringify(payload),
     })
       .then(function (res) {
-        return res.json().then(function (data) {
+        return jsonBody(res).then(function (data) {
           if (!res.ok) {
             throw new Error(data && data.error ? data.error : "remove failed");
           }
+          if (!data) throw new Error("remove failed");
           if (status) status.textContent = "RSVP removed.";
           return refresh();
         });
@@ -202,10 +211,11 @@
         body: JSON.stringify(payload),
       })
         .then(function (res) {
-          return res.json().then(function (data) {
+          return jsonBody(res).then(function (data) {
             if (!res.ok) {
               throw new Error(data && data.error ? data.error : "rsvp failed");
             }
+            if (!data) throw new Error("rsvp failed");
             var minted = data.me && data.me !== me;
             if (data.me && !isAdmin) saveKey(data.me);
             if (status) {
