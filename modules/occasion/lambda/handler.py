@@ -10,6 +10,7 @@ admin key — can change or remove it. Rows written before edit keys existed
 are claimed by the owner's first write (admin edits never claim a row).
 
 Table layout (single table, on-demand):
+  CONFIG#OCCASION / META  max_rsvps_per_event, expires_at?  (synced by sync-links)
   LINK#<token> / META   rsvp_events, prefill_name?, expires_at?
   ADMIN#<key> / META    expires_at?  (host key: edit or remove any RSVP)
   KEY#<edit_key> / META expires_at?  (written at mint; outlives the rows the
@@ -36,7 +37,7 @@ RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
 MAX_PARTY = 10
 MAX_BODY = 2048
-MAX_EVENT_RSVPS = 200
+DEFAULT_MAX_EVENT_RSVPS = 200
 
 _table = None
 
@@ -145,7 +146,15 @@ def get_link(token: str) -> dict | None:
     return item
 
 
-def event_rows(event_id: str, limit: int = MAX_EVENT_RSVPS) -> list[dict]:
+def max_event_rsvps() -> int:
+    """Occasion-configured cap on RSVP rows per event."""
+    item = table().get_item(Key={"pk": "CONFIG#OCCASION", "sk": "META"}).get("Item")
+    if item is None:
+        return DEFAULT_MAX_EVENT_RSVPS
+    return int(item.get("max_rsvps_per_event", DEFAULT_MAX_EVENT_RSVPS))
+
+
+def event_rows(event_id: str, limit: int) -> list[dict]:
     """Up to `limit` NAME# rows for an event, bounding work per request."""
     items: list[dict] = []
     kwargs = {
@@ -175,6 +184,7 @@ def get_state(token: str, me: str = "") -> dict:
     known = admin or (bool(me) and key_is_minted(me))
     events: dict[str, list[dict]] = {}
     prefill = link.get("prefill_name")
+    cap = max_event_rsvps()
     for event_id in link.get("rsvp_events", []):
         rows = [
             {
@@ -183,7 +193,7 @@ def get_state(token: str, me: str = "") -> dict:
                 "party_size": int(item["party_size"]),
                 "mine": bool(me) and item.get("edit_key") == me,
             }
-            for item in event_rows(event_id)
+            for item in event_rows(event_id, cap)
         ]
         rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
         events[event_id] = rows
@@ -222,8 +232,10 @@ def put_rsvp(rsvp: dict) -> dict:
         raise Forbidden(
             "that name already has an RSVP here — use your private edit link to change it"
         )
-    if existing is None and len(event_rows(rsvp["event_id"])) >= MAX_EVENT_RSVPS:
-        raise BadRequest("this event's RSVP list is full")
+    if existing is None:
+        cap = max_event_rsvps()
+        if len(event_rows(rsvp["event_id"], cap)) >= cap:
+            raise BadRequest("this event's RSVP list is full")
     # Admin edits never claim a row: a keyless row stays claimable by its owner.
     # A supplied key binds to a new row only if this occasion minted it;
     # anything else gets a fresh mint, recorded so the key stays honored

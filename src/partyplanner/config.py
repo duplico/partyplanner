@@ -155,6 +155,7 @@ class Occasion(BaseModel):
     links: list[Link] = Field(default_factory=list)
     revoked: list[str] = Field(default_factory=list)
     admin_key: str | None = None
+    max_rsvps_per_event: int = Field(default=200, ge=1, le=1000)
 
     @field_validator("admin_key")
     @classmethod

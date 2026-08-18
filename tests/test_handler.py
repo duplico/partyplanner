@@ -250,7 +250,7 @@ def test_get_state_follows_pagination(monkeypatch):
 
 
 def test_get_state_bounds_rows_per_event(monkeypatch):
-    over = handler.MAX_EVENT_RSVPS + 50
+    over = handler.DEFAULT_MAX_EVENT_RSVPS + 50
     table = FakeTable(
         links={"LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]}},
         rsvps={
@@ -261,13 +261,13 @@ def test_get_state_bounds_rows_per_event(monkeypatch):
     )
     monkeypatch.setattr(handler, "table", lambda: table)
     state = handler.get_state("fixturebbqgroupchat2")
-    assert len(state["events"]["bbq"]) == handler.MAX_EVENT_RSVPS
+    assert len(state["events"]["bbq"]) == handler.DEFAULT_MAX_EVENT_RSVPS
 
 
 def test_put_rsvp_rejects_new_name_when_event_full(monkeypatch):
     full = [
         {"name": f"guest {i:04d}", "response": "yes", "party_size": 0}
-        for i in range(handler.MAX_EVENT_RSVPS)
+        for i in range(handler.DEFAULT_MAX_EVENT_RSVPS)
     ]
     full[0]["edit_key"] = "fixtureeditkey222222"
     table = FakeTable(
@@ -286,6 +286,27 @@ def test_put_rsvp_rejects_new_name_when_event_full(monkeypatch):
         handler.parse_rsvp(_rsvp_body(name="guest 0000", remove=True, me="fixtureeditkey222222"))
     )
     assert ("EVENT#bbq", "NAME#guest 0000") not in table.rows
+
+
+def test_rsvp_cap_is_occasion_configurable(monkeypatch):
+    table = FakeTable(
+        links={
+            "LINK#fixturebbqgroupchat2": {"rsvp_events": ["bbq"]},
+            "CONFIG#OCCASION": {"max_rsvps_per_event": 2},
+        },
+        rsvps={
+            "EVENT#bbq": [
+                {"name": "guest a", "response": "yes", "party_size": 0},
+                {"name": "guest b", "response": "yes", "party_size": 0},
+                {"name": "guest c", "response": "yes", "party_size": 0},
+            ]
+        },
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    state = handler.get_state("fixturebbqgroupchat2")
+    assert len(state["events"]["bbq"]) == 2
+    with pytest.raises(handler.BadRequest, match="full"):
+        handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="One Too Many")))
 
 
 def test_get_state_prefill_suppressed_after_rsvp(monkeypatch):

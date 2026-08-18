@@ -30,7 +30,6 @@ RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
 MAX_PARTY = 10
 MAX_BODY = 2048
-MAX_EVENT_RSVPS = 200
 EVENT_ID_RE = re.compile(r"^[a-z0-9-]{1,64}\Z")
 
 
@@ -105,6 +104,7 @@ class PreviewStore:
 
     def update(self, occasion: Occasion) -> None:
         """Swap in the occasion's current links/admin key, keeping RSVPs."""
+        self.max_event_rsvps = occasion.max_rsvps_per_event
         items = link_items(occasion)
         self.links = {
             item["pk"].removeprefix("LINK#"): item
@@ -194,7 +194,7 @@ class PreviewStore:
                 )
             if existing is None:
                 count = sum(1 for eid, _ in self.rsvps if eid == event_id)
-                if count >= MAX_EVENT_RSVPS:
+                if count >= self.max_event_rsvps:
                     raise PreviewError("this event's RSVP list is full")
             # Admin edits never claim a row: a keyless row stays claimable by its owner.
             # A supplied key binds to a new row only if this occasion minted it;
