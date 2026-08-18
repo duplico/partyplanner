@@ -88,12 +88,11 @@
       return;
     }
     if (!note) {
-      note = el("p", "me-link");
+      note = el("div", "me-link");
       note.appendChild(document.createTextNode("Your "));
       note.appendChild(el("a", null, "private edit link"));
-      note.appendChild(document.createTextNode(" — bookmark it to change your RSVPs from any device, and don't share it."));
-      var main = document.querySelector("main");
-      (main || document.body).appendChild(note);
+      note.appendChild(document.createTextNode(" — bookmark it to change your RSVPs from any device; don't share it."));
+      document.body.insertBefore(note, document.body.firstChild);
     }
     note.querySelector("a").href = editUrl();
   }

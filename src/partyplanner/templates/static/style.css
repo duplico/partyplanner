@@ -33,11 +33,14 @@ main {
 }
 .admin-banner a { color: inherit; }
 
-/* Standing reminder of the visitor's private edit link */
+/* Standing reminder of the visitor's private edit link: a banner like
+   host mode, but styled as a note rather than a warning. */
 .me-link {
-  margin-top: 2rem;
-  text-align: center;
+  background: var(--card);
+  border-bottom: 2px solid var(--accent);
   color: var(--muted);
+  text-align: center;
+  padding: 0.4rem 1rem;
   font-size: 0.9em;
 }
 .me-link a { color: var(--accent); }
