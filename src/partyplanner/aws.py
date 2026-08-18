@@ -68,7 +68,8 @@ def sync_links(occasion: Occasion, table_name: str) -> tuple[int, int]:
             batch.put_item(Item=item)
         for pk in sorted(stale):
             batch.delete_item(Key={"pk": pk, "sk": "META"})
-    return len(items), len(stale)
+    links = sum(1 for item in items if str(item["pk"]).startswith("LINK#"))
+    return links, len(stale)
 
 
 def export_rsvps(table_name: str) -> list[dict]:

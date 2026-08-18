@@ -112,7 +112,19 @@
         var ownsARow = Object.keys(state.events).some(function (eventId) {
           return state.events[eventId].some(function (r) { return r.mine; });
         });
-        if (me && me === urlMe && !isAdmin && ownsARow) saveKey(me);
+        if (me && me === urlMe && !isAdmin) {
+          if (ownsARow) saveKey(me);
+          else {
+            // Unproven URL key: never use, store, or attach it to a row.
+            urlMe = "";
+            me = "";
+            try {
+              var fallback = localStorage.getItem(storageKey) || "";
+              if (KEY_RE.test(fallback)) me = fallback;
+            } catch (err) { /* ignore */ }
+            return refresh();
+          }
+        }
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId]);
           prefillMine(eventId, state.events[eventId]);
