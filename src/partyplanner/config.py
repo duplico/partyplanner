@@ -298,7 +298,13 @@ def merged_raw(path: Path) -> CommentedMap:
         for key in ("links", "revoked"):
             if extra.get(key):
                 data[key] = list(data.get(key) or []) + list(extra[key])
-        if extra.get("admin_key") and not data.get("admin_key"):
+        if extra.get("admin_key"):
+            if data.get("admin_key") and data["admin_key"] != extra["admin_key"]:
+                raise ConfigError(
+                    f"admin_key is defined in both {path.name} and {links_path.name} "
+                    "with different values; remove one (the links-file key is the "
+                    "one `partyplanner link admin` manages)"
+                )
             data["admin_key"] = extra["admin_key"]
     return data
 

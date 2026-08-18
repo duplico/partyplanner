@@ -88,6 +88,19 @@ def test_load_merges_admin_key_from_links_file(tmp_path: Path):
     assert config.load(src).admin_key == "fixtureadminkey22222"
 
 
+def test_conflicting_admin_keys_across_files_rejected(tmp_path: Path):
+    src = _config(tmp_path, BASE + "admin_key: fixtureadmininline22\n")
+    (tmp_path / LINKS_FILENAME).write_text("admin_key: fixtureadminlinks22\n")
+    with pytest.raises(ConfigError, match="both"):
+        config.load(src)
+
+
+def test_same_admin_key_in_both_files_ok(tmp_path: Path):
+    src = _config(tmp_path, BASE + "admin_key: fixtureadminkey22222\n")
+    (tmp_path / LINKS_FILENAME).write_text("admin_key: fixtureadminkey22222\n")
+    assert config.load(src).admin_key == "fixtureadminkey22222"
+
+
 def test_admin_key_collision_with_link_token_rejected(tmp_path: Path):
     src = _config(tmp_path, BASE + "links:\n  - token: fixtureadminkey22222\n")
     (tmp_path / LINKS_FILENAME).write_text("admin_key: fixtureadminkey22222\n")
