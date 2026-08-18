@@ -114,7 +114,18 @@ def link() -> None:
 )
 @click.option("--note", default=None, help="Who/what this link is for.")
 @click.option("--prefill", "prefill_name", default=None, help="Pre-fill the RSVP name field.")
-def link_add(config_path: Path, scope: str, note: str | None, prefill_name: str | None) -> None:
+@click.option(
+    "--slug",
+    default=None,
+    help="Friendly URL prefix: --slug visitors mints /i/visitors-<token>/.",
+)
+def link_add(
+    config_path: Path,
+    scope: str,
+    note: str | None,
+    prefill_name: str | None,
+    slug: str | None,
+) -> None:
     """Mint a new invitation link into .links.yaml (commit the result)."""
     occasion = _load(config_path)
     scope_value: str | list[str] = scope
@@ -125,7 +136,9 @@ def link_add(config_path: Path, scope: str, note: str | None, prefill_name: str 
                 "--scope must be `all`, a named scope, or comma-separated event ids"
             )
     try:
-        new = config_mod.add_link(config_path, scope_value, note=note, prefill_name=prefill_name)
+        new = config_mod.add_link(
+            config_path, scope_value, note=note, prefill_name=prefill_name, slug=slug
+        )
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
     label = new.prefill_name or new.note or "(unlabeled)"

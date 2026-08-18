@@ -19,7 +19,7 @@ from partyplanner.preview import (
     preview_urls,
 )
 from partyplanner.render import render
-from partyplanner.tokens import TOKEN_RE
+from partyplanner.tokens import KEY_RE, TOKEN_RE
 
 TOKEN = "fixturepreviewtoken2"
 PARTY_TOKEN = "fixturepartytoken222"
@@ -85,7 +85,7 @@ def test_store_state_scope_and_prefill():
 def test_store_rsvp_upserts_and_suppresses_prefill():
     store = PreviewStore(_occasion())
     first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "  pat ", "response": "maybe"})
-    assert TOKEN_RE.match(first["me"])
+    assert KEY_RE.match(first["me"])
     store.rsvp(
         {
             "token": TOKEN,
@@ -170,7 +170,7 @@ def test_store_unknown_key_never_binds_to_new_row():
         {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes", "me": chosen}
     )
     assert result["me"] != chosen
-    assert TOKEN_RE.match(result["me"])
+    assert KEY_RE.match(result["me"])
     assert store.state(TOKEN, me=chosen)["events"]["a"][0]["mine"] is False
 
 
@@ -302,7 +302,7 @@ def test_server_serves_site_and_api_end_to_end(tmp_path: Path):
         )
         result = json.load(urllib.request.urlopen(req))
         assert result["ok"] is True
-        assert TOKEN_RE.match(result["me"])
+        assert KEY_RE.match(result["me"])
 
         state = json.load(urllib.request.urlopen(f"{base}/api/state?t={TOKEN}"))
         assert state["events"]["a"] == [

@@ -32,7 +32,10 @@ import secrets
 import boto3
 from botocore.exceptions import ClientError
 
-TOKEN_RE = re.compile(r"^[a-z2-7]{16,64}\Z")
+# Edit/admin keys are pure base32; link tokens may carry a slug prefix
+# (`visitors-a7k2m6qexz`) and are opaque here — minting enforces their shape.
+KEY_RE = re.compile(r"^[a-z2-7]{16,64}\Z")
+TOKEN_RE = re.compile(r"^[a-z0-9][a-z0-9-]{9,79}\Z")
 RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
 MAX_PARTY = 10
@@ -109,7 +112,7 @@ def parse_rsvp(body: dict) -> dict:
     if not name.isprintable():
         raise BadRequest("name contains unprintable characters")
     me = body.get("me")
-    if me is not None and (not isinstance(me, str) or not TOKEN_RE.match(me)):
+    if me is not None and (not isinstance(me, str) or not KEY_RE.match(me)):
         raise BadRequest("bad me")
     remove = body.get("remove", False)
     if not isinstance(remove, bool):
@@ -209,7 +212,7 @@ def get_state(token: str, me: str = "") -> dict:
     link = get_link(token)
     if link is None:
         raise BadRequest("unknown link")
-    if me and not TOKEN_RE.match(me):
+    if me and not KEY_RE.match(me):
         me = ""
     admin = is_admin(me)
     # Occasion-wide: a key can be known here even when none of its rows are

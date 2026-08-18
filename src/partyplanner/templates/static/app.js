@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  var match = location.pathname.match(/\/i\/([a-z2-7]+)/);
+  var match = location.pathname.match(/\/i\/([a-z0-9-]+)/);
   if (!match) return;
   var token = match[1];
 

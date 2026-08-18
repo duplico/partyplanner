@@ -61,12 +61,12 @@ events:
 ```console
 $ partyplanner mint occasion.yaml      # writes event ids back into the file
 event 'BBQ': id = bbq
-$ partyplanner link add occasion.yaml --note "group chat link, forward freely"
-group chat link, forward freely	https://bbq-2026.events.example.com/i/k7f3q2vmxw4tzr6ehb2a/
+$ partyplanner link add occasion.yaml --note "group chat link, forward freely" --slug friends
+group chat link, forward freely	https://bbq-2026.events.example.com/i/friends-k7f3q2vmxw/
 $ partyplanner preview occasion.yaml   # local preview at http://127.0.0.1:8000
 $ partyplanner render occasion.yaml    # out/site/ + out/links.csv
 $ partyplanner links occasion.yaml
-group chat link, forward freely	https://bbq-2026.events.example.com/i/k7f3q2vmxw4tzr6ehb2a/
+group chat link, forward freely	https://bbq-2026.events.example.com/i/friends-k7f3q2vmxw/
 ```
 
 See `fixtures/allhallowtide/` for the maximal example: six events, scoped
@@ -79,7 +79,7 @@ optional end times, per-occasion CSS overrides, and a revoked token.
 | --- | --- |
 | `partyplanner validate <config>` | validate an occasion config |
 | `partyplanner mint <config>` | fill in missing event ids and link tokens (writes back, preserves comments) |
-| `partyplanner link add <config> --scope <s> --note <n> [--prefill <name>]` | mint a new invitation link into the machine-generated `.links.yaml` |
+| `partyplanner link add <config> --scope <s> --note <n> [--prefill <name>] [--slug <slug>]` | mint a new invitation link into the machine-generated `.links.yaml` |
 | `partyplanner link revoke <config> <token>` | move a generated link's token to `revoked:` (URL 404s on next deploy) |
 | `partyplanner link admin <config>` | print the occasion's admin key (minting one into `.links.yaml` if needed) |
 | `partyplanner link list <config>` | print invitation URLs |
