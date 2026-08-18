@@ -33,6 +33,29 @@ You can run the *actual* handler locally against moto's in-memory DynamoDB:
    `SimpleHTTPRequestHandler` serves `index.html` for `/i/<token>/` natively,
    matching the CloudFront rewrite function in production.
 
+## Alternative: `partyplanner preview` (in-memory API, zero deps)
+`uv run partyplanner preview fixtures/allhallowtide/occasion.yaml --port 8010`
+renders to a temp dir and serves it with an in-memory `PreviewStore` that has
+full parity with the Lambda handler (same 403 messages, RSVP edit keys, admin).
+No moto needed. It prints the link URLs plus an "admin view" URL with an
+auto-minted preview-only admin key (`?me=<key>`). RSVP state survives hot
+reloads but not process restarts.
+
+## RSVP edit keys / admin (if the feature branch has them)
+- First RSVP for an (event, name) returns `{ok, me}` and the UI shows a
+  "bookmark your private edit link" message with a `?me=<key>` URL; the key is
+  stored in `localStorage["partyplanner-me"]` and spans all events on the link.
+- Owned rows show "(you)", a confirm-guarded "remove" button, form prefill,
+  and an "Update RSVP" submit label.
+- Keyless resubmit of an owned name → 403 shown in the status line:
+  "that name already has an RSVP here — use your private edit link to change it".
+- Admin (`?me=<admin key>`) sees remove buttons on all rows but no "(you)";
+  the frontend must NOT overwrite a stored admin key with `data.me` from edits
+  (check `localStorage.getItem("partyplanner-me")` after an admin edit + reload).
+- Good multi-user simulation: normal window = user A / keyless stranger
+  (clear localStorage between roles), incognito window = returning user via
+  the `?me=` link.
+
 ## What to check
 - Tokens live in the fixture YAMLs (`links:` in the config, or the sibling
   machine-generated `.links.yaml`); the revoked one for allhallowtide

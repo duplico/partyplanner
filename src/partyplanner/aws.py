@@ -32,10 +32,15 @@ def link_items(occasion: Occasion) -> list[dict]:
         if expires:
             item["expires_at"] = expires
         items.append(item)
+    if occasion.admin_key:
+        item = {"pk": f"ADMIN#{occasion.admin_key}", "sk": "META"}
+        if expires:
+            item["expires_at"] = expires
+        items.append(item)
     return items
 
 
-def _existing_link_pks(table) -> set[str]:
+def _existing_meta_pks(table) -> set[str]:
     pks: set[str] = set()
     kwargs: dict = {}
     while True:
@@ -43,7 +48,7 @@ def _existing_link_pks(table) -> set[str]:
         pks.update(
             str(item["pk"])
             for item in page["Items"]
-            if str(item.get("pk", "")).startswith("LINK#") and item.get("sk") == "META"
+            if str(item.get("pk", "")).startswith(("LINK#", "ADMIN#")) and item.get("sk") == "META"
         )
         if "LastEvaluatedKey" not in page:
             return pks
@@ -57,13 +62,14 @@ def sync_links(occasion: Occasion, table_name: str) -> tuple[int, int]:
     table = boto3.resource("dynamodb").Table(table_name)
     items = link_items(occasion)
     active = {item["pk"] for item in items}
-    stale = (_existing_link_pks(table) | {f"LINK#{t}" for t in occasion.revoked}) - active
+    stale = (_existing_meta_pks(table) | {f"LINK#{t}" for t in occasion.revoked}) - active
     with table.batch_writer() as batch:
         for item in items:
             batch.put_item(Item=item)
         for pk in sorted(stale):
             batch.delete_item(Key={"pk": pk, "sk": "META"})
-    return len(items), len(stale)
+    links = sum(1 for item in items if str(item["pk"]).startswith("LINK#"))
+    return links, len(stale)
 
 
 def export_rsvps(table_name: str) -> list[dict]:

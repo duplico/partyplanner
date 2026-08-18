@@ -132,6 +132,26 @@ def link_add(config_path: Path, scope: str, note: str | None, prefill_name: str 
     click.echo(f"{label}\thttps://{occasion.domain}/i/{new.token}/")
 
 
+@link.command("admin")
+@click.argument("config_path", type=click.Path(exists=True, path_type=Path))
+def link_admin(config_path: Path) -> None:
+    """Print the occasion's admin key, minting one into .links.yaml if needed.
+
+    Append `?me=<key>` to any invitation URL to edit or remove anyone's RSVP.
+    Keep it private — anyone with the key can change every RSVP.
+    """
+    occasion = _load(config_path)
+    try:
+        key, minted = config_mod.ensure_admin_key(config_path)
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
+    if minted:
+        click.echo("minted an admin key (commit .links.yaml and redeploy to activate it)")
+    click.echo(f"admin key: {key}")
+    if occasion.links and occasion.links[0].token:
+        click.echo(f"e.g. https://{occasion.domain}/i/{occasion.links[0].token}/?me={key}")
+
+
 @link.command("revoke")
 @click.argument("config_path", type=click.Path(exists=True, path_type=Path))
 @click.argument("token")

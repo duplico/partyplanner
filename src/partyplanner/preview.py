@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlsplit
 from .aws import link_items
 from .config import ConfigError, Occasion, load
 from .render import render
-from .tokens import derive_id, mint_token
+from .tokens import TOKEN_RE, derive_id, mint_token
 
 RESPONSES = ("yes", "maybe", "no")
 MAX_NAME = 40
@@ -74,6 +74,10 @@ def completed(occasion: Occasion, previous: Occasion | None = None) -> tuple[Occ
         data["links"] = [{"token": token, "note": "preview-only link (scope: all)"}]
         if previous is None:
             notes.append("no links in config: added a preview-only link with scope `all`")
+    if data["admin_key"] is None:
+        data["admin_key"] = previous.admin_key if previous is not None else mint_token()
+        if previous is None:
+            notes.append("no admin key: using a preview-only one")
     return Occasion.model_validate(data), notes
 
 
@@ -81,19 +85,36 @@ class PreviewError(ValueError):
     pass
 
 
+class PreviewForbidden(PreviewError):
+    pass
+
+
 class PreviewStore:
     """In-memory equivalent of the occasion's DynamoDB table."""
 
     def __init__(self, occasion: Occasion) -> None:
-        self.links = {item["pk"].removeprefix("LINK#"): item for item in link_items(occasion)}
+        self.links: dict[str, dict] = {}
+        self.admin_keys: set[str] = set()
         self.rsvps: dict[tuple[str, str], dict] = {}
+        # Keys this preview minted; outlives their rows (like KEY# records
+        # in production), so a bookmark survives remove-then-re-RSVP.
+        self.minted_keys: set[str] = set()
         self._lock = threading.Lock()  # requests run in ThreadingHTTPServer threads
+        self.update(occasion)
 
     def update(self, occasion: Occasion) -> None:
-        """Swap in the occasion's current links, keeping RSVPs."""
-        self.links = {item["pk"].removeprefix("LINK#"): item for item in link_items(occasion)}
+        """Swap in the occasion's current links/admin key, keeping RSVPs."""
+        items = link_items(occasion)
+        self.links = {
+            item["pk"].removeprefix("LINK#"): item
+            for item in items
+            if item["pk"].startswith("LINK#")
+        }
+        self.admin_keys = {
+            item["pk"].removeprefix("ADMIN#") for item in items if item["pk"].startswith("ADMIN#")
+        }
 
-    def state(self, token: str) -> dict:
+    def state(self, token: str, me: str = "") -> dict:
         link = self.links.get(token)
         if link is None:
             raise PreviewError("unknown link")
@@ -102,14 +123,27 @@ class PreviewStore:
         events: dict[str, list[dict]] = {}
         prefill = link.get("prefill_name")
         for event_id in link["rsvp_events"]:
-            rows = [row for eid, row in snapshot if eid == event_id]
+            rows = [
+                {
+                    "name": row["name"],
+                    "response": row["response"],
+                    "party_size": row["party_size"],
+                    "mine": bool(me) and row["edit_key"] == me,
+                }
+                for eid, row in snapshot
+                if eid == event_id
+            ]
             rows.sort(key=lambda r: (RESPONSES.index(r["response"]), r["name"].casefold()))
             events[event_id] = rows
             if prefill and any(r["name"].casefold() == prefill.casefold() for r in rows):
                 prefill = None
-        return {"events": events, "prefill": prefill}
+        admin = me in self.admin_keys
+        # Occasion-wide: a key can be known here even when none of its rows are
+        # in this link's scope (disjoint-scope links, or all rows removed).
+        known = admin or (bool(me) and me in self.minted_keys)
+        return {"events": events, "prefill": prefill, "admin": admin, "known": known}
 
-    def rsvp(self, body: dict) -> None:
+    def rsvp(self, body: dict) -> dict:
         token = body.get("token")
         link = self.links.get(token) if isinstance(token, str) else None
         if link is None:
@@ -125,6 +159,23 @@ class PreviewStore:
         name = " ".join(name.split())
         if not 1 <= len(name) <= MAX_NAME or not name.isprintable():
             raise PreviewError(f"name must be 1-{MAX_NAME} printable characters")
+        me = body.get("me")
+        if me is not None and (not isinstance(me, str) or not TOKEN_RE.match(me)):
+            raise PreviewError("bad me")
+        admin = me in self.admin_keys
+        remove = body.get("remove", False)
+        if not isinstance(remove, bool):
+            raise PreviewError("bad remove")
+        if remove:
+            with self._lock:
+                existing = self.rsvps.get((event_id, name.casefold()))
+                owner_key = existing["edit_key"] if existing else None
+                if not (admin or (owner_key and owner_key == me)):
+                    raise PreviewForbidden(
+                        "only that RSVP's private edit link (or the host) can remove it"
+                    )
+                self.rsvps.pop((event_id, name.casefold()), None)
+            return {"ok": True}
         response = body.get("response")
         if response not in RESPONSES:
             raise PreviewError("response must be yes, maybe, or no")
@@ -134,11 +185,33 @@ class PreviewStore:
         if not 0 <= party_size <= MAX_PARTY:
             raise PreviewError(f"party_size must be 0-{MAX_PARTY}")
         with self._lock:
+            existing = self.rsvps.get((event_id, name.casefold()))
+            owner_key = existing["edit_key"] if existing else None
+            if owner_key and owner_key != me and not admin:
+                raise PreviewForbidden(
+                    "that name already has an RSVP here — use your private edit link to change it"
+                )
+            # Admin edits never claim a row: a keyless row stays claimable by its owner.
+            # A supplied key binds to a new row only if this occasion minted it;
+            # anything else gets a fresh mint, recorded so the key stays
+            # honored even after its last row is removed.
+            if admin or owner_key:
+                edit_key = owner_key
+            elif me and me in self.minted_keys:
+                edit_key = me
+            else:
+                edit_key = mint_token()
+                self.minted_keys.add(edit_key)
             self.rsvps[(event_id, name.casefold())] = {
                 "name": name,
                 "response": response,
                 "party_size": party_size,
+                "edit_key": edit_key,
             }
+        result = {"ok": True}
+        if edit_key and not admin:
+            result["me"] = edit_key
+        return result
 
 
 class ReloadState:
@@ -182,9 +255,13 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             return
         if url.path.startswith("/api/"):
             if url.path.endswith("/state"):
-                token = parse_qs(url.query).get("t", [""])[0]
+                params = parse_qs(url.query)
+                token = params.get("t", [""])[0]
+                me = params.get("me", [""])[0]
+                if me and not TOKEN_RE.match(me):
+                    me = ""
                 try:
-                    self._json(200, self.store.state(token))
+                    self._json(200, self.store.state(token, me))
                 except PreviewError as e:
                     self._json(400, {"error": str(e)})
             else:
@@ -235,10 +312,11 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise PreviewError("invalid JSON")
-            self.store.rsvp(body)
-            self._json(200, {"ok": True})
+            self._json(200, self.store.rsvp(body))
         except json.JSONDecodeError:
             self._json(400, {"error": "invalid JSON"})
+        except PreviewForbidden as e:
+            self._json(403, {"error": str(e)})
         except PreviewError as e:
             self._json(400, {"error": str(e)})
 
@@ -266,6 +344,13 @@ def preview_urls(occasion: Occasion, base: str) -> list[tuple[str, str]]:
         label = link.prefill_name or link.note or f"link #{i + 1}"
         scope = link.scope if isinstance(link.scope, str) else " ".join(link.scope)
         urls.append((f"{label} (scope: {scope})", f"{base}/i/{link.token}/"))
+    if occasion.admin_key and occasion.links:
+        urls.append(
+            (
+                "admin view (edit/remove any RSVP)",
+                f"{base}/i/{occasion.links[0].token}/?me={occasion.admin_key}",
+            )
+        )
     return urls
 
 

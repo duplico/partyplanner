@@ -24,7 +24,9 @@ resource "aws_iam_role" "rsvp" {
 data "aws_iam_policy_document" "rsvp" {
   statement {
     actions = [
+      "dynamodb:DeleteItem",
       "dynamodb:GetItem",
+      "dynamodb:PutItem",
       "dynamodb:Query",
       "dynamodb:UpdateItem",
     ]

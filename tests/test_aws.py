@@ -77,6 +77,36 @@ def test_sync_links_deletes_removed_and_revoked_without_duplicates(monkeypatch):
     assert all(d["sk"] == "META" for d in fake.deletes)
 
 
+def test_sync_links_replaces_stale_admin_key(monkeypatch):
+    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = occasion.model_copy(update={"admin_key": "fixtureadminkey22222"})
+    fake = _FakeTable({"ADMIN#fixtureoldadminkey2"})
+
+    class _Resource:
+        def Table(self, name):
+            return fake
+
+    import boto3
+
+    monkeypatch.setattr(boto3, "resource", lambda service: _Resource())
+    active, _ = aws.sync_links(occasion, "t")
+
+    assert active == len(occasion.links)  # admin metadata is not an invitation link
+    assert {"pk": "ADMIN#fixtureadminkey22222", "sk": "META"} in [
+        {"pk": p["pk"], "sk": p["sk"]} for p in fake.puts
+    ]
+    assert {"pk": "ADMIN#fixtureoldadminkey2", "sk": "META"} in fake.deletes
+
+
+def test_link_items_admin_key():
+    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = occasion.model_copy(update={"admin_key": "fixtureadminkey22222"})
+    items = {item["pk"]: item for item in link_items(occasion)}
+    admin = items["ADMIN#fixtureadminkey22222"]
+    assert admin["sk"] == "META"
+    assert admin["expires_at"] > 1_700_000_000
+
+
 def test_link_items_allhallowtide():
     occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
     items = {item["pk"]: item for item in link_items(occasion)}

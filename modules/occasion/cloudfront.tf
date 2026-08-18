@@ -78,10 +78,14 @@ resource "aws_cloudfront_function" "index_rewrite" {
       if (uri.endsWith('/')) {
         request.uri = uri + 'index.html';
       } else if (/^\/i\/[a-z2-7]{16,64}$/.test(uri)) {
+        // Only ?me=<key> is meaningful on invitation pages; forwarding just
+        // that (validated) avoids echoing arbitrary viewer input in a header.
+        var qsMe = request.querystring.me;
+        var qs = qsMe && /^[a-z2-7]{16,64}$/.test(qsMe.value) ? '?me=' + qsMe.value : '';
         return {
           statusCode: 301,
           statusDescription: 'Moved Permanently',
-          headers: { location: { value: uri + '/' } }
+          headers: { location: { value: uri + '/' + qs } }
         };
       }
       return request;

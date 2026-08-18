@@ -26,6 +26,11 @@ photo, blurb, time, place, link in the group chat, done."
 - RSVPs (name, yes/maybe/no, +N guests) are visible to everyone who can see the
   page — seeing who's coming drives attendance, and it's also how hosts read
   the list.
+- The first RSVP mints a **private edit key** for that person: the page offers
+  a bookmarkable `?me=<key>` link (and remembers the key in the browser) that
+  lets them edit or remove their RSVPs for every event under that link. Only
+  the key holder — or the host's **admin key** (`partyplanner link admin`),
+  which can edit or remove anyone's RSVP — can change an existing RSVP.
 - Every dated event gets **add-to-calendar links** (Google, Outlook, Yahoo, and
   an ICS file for everything else), and pages carry
   OpenGraph tags so the link unfurl in Signal/Discord/iMessage looks like an
@@ -74,6 +79,7 @@ optional end times, per-occasion CSS overrides, and a revoked token.
 | `partyplanner mint <config>` | fill in missing event ids and link tokens (writes back, preserves comments) |
 | `partyplanner link add <config> --scope <s> --note <n> [--prefill <name>]` | mint a new invitation link into the machine-generated `.links.yaml` |
 | `partyplanner link revoke <config> <token>` | move a generated link's token to `revoked:` (URL 404s on next deploy) |
+| `partyplanner link admin <config>` | print the occasion's admin key (minting one into `.links.yaml` if needed) |
 | `partyplanner link list <config>` | print invitation URLs |
 | `partyplanner preview <config>` | render + serve locally with an in-memory RSVP API; prints a URL per link view |
 | `partyplanner render <config> --out out` | render static site, ICS files, and `links.csv` |
@@ -177,5 +183,12 @@ $ terraform -chdir=examples/occasion init -backend=false && terraform -chdir=exa
 Pages are public-if-you-have-the-URL: long random tokens, `robots.txt`,
 `noindex`, and no sitemap — but no auth. Don't put anything on an invitation
 page you wouldn't tell a guest's group chat. Anyone with a link can RSVP under
-any name (social trust is the moderation model); hosts can delete rows in
-DynamoDB and force-rotate links.
+any unused name (social trust is the moderation model), but changing or
+removing an existing RSVP takes that person's private edit key or the host's
+admin key. Keys are bearer capabilities: the edit link shouldn't be shared,
+and the admin key (committed in `.links.yaml` in your private events repo)
+shouldn't leave the hosts. Guest edit keys persist in the browser's
+localStorage; the admin key never does — it lives only in the `?me=` URL, so
+close the tab (and mind your history) on a shared machine. Admin edits never
+take ownership of a guest's RSVP. Hosts can also force-rotate links or edit
+rows in DynamoDB directly.
