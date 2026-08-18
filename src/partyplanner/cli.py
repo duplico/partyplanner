@@ -16,9 +16,11 @@ def _load(config_path: Path):
         raise click.ClickException(str(e)) from e
 
 
-def _default_config(ctx: click.Context, param: click.Parameter, value: Path | None) -> Path:
+def _default_config(ctx: click.Context, param: click.Parameter, value: Path | None) -> Path | None:
     if value is not None:
         return value
+    if ctx.resilient_parsing:
+        return None
     fallback = Path("occasion.yaml")
     if not fallback.is_file():
         raise click.UsageError(
