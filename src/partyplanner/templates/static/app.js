@@ -57,6 +57,47 @@
     return location.origin + location.pathname + "?me=" + me;
   }
 
+  // Leaving host mode is just reloading without ?me= — admin keys are never
+  // saved, so the plain URL renders the ordinary guest view.
+  function renderAdminBanner() {
+    var banner = document.querySelector(".admin-banner");
+    if (!isAdmin) {
+      if (banner) banner.remove();
+      return;
+    }
+    if (banner) return;
+    banner = el("div", "admin-banner", "Host mode — you can edit or remove anyone's RSVP. ");
+    var leave = el("a", null, "Leave host mode");
+    var params = new URLSearchParams(location.search);
+    params.delete("me");
+    var qs = params.toString();
+    leave.href = location.pathname + (qs ? "?" + qs : "");
+    banner.appendChild(leave);
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+
+  // A visitor whose identity this browser holds always sees their private
+  // edit link, so the post-RSVP bookmark offer isn't the only chance to
+  // copy it.
+  function renderMeLink(known) {
+    var note = document.querySelector(".me-link");
+    var saved = "";
+    try { saved = localStorage.getItem(storageKey) || ""; } catch (err) { /* ignore */ }
+    if (isAdmin || !known || !me || !meVetted || me !== saved) {
+      if (note) note.remove();
+      return;
+    }
+    if (!note) {
+      note = el("p", "me-link");
+      note.appendChild(document.createTextNode("Your "));
+      note.appendChild(el("a", null, "private edit link"));
+      note.appendChild(document.createTextNode(" — bookmark it to change your RSVPs from any device, and don't share it."));
+      var main = document.querySelector("main");
+      (main || document.body).appendChild(note);
+    }
+    note.querySelector("a").href = editUrl();
+  }
+
   // Writes run one at a time, so a second keyless submit reuses the key
   // minted by the first instead of minting a second identity.
   var writeQueue = Promise.resolve();
@@ -191,6 +232,8 @@
         }
         meVetted = true;
         if (me && me === urlMe && !isAdmin) saveKey(me);
+        renderAdminBanner();
+        renderMeLink(!!state.known);
         Object.keys(state.events).forEach(function (eventId) {
           renderEvent(eventId, state.events[eventId], (state.more || {})[eventId] || 0);
           prefillMine(eventId, state.events[eventId]);

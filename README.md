@@ -28,9 +28,11 @@ photo, blurb, time, place, link in the group chat, done."
   the list.
 - The first RSVP mints a **private edit key** for that person: the page offers
   a bookmarkable `?me=<key>` link (and remembers the key in the browser) that
-  lets them edit or remove their RSVPs for every event under that link. Only
-  the key holder — or the host's **admin key** (`partyplanner link admin`),
-  which can edit or remove anyone's RSVP — can change an existing RSVP.
+  lets them edit or remove their RSVPs for every event under that link — a
+  browser holding the key keeps showing that private link on later visits.
+  Only the key holder — or the host's **admin key** (`partyplanner link
+  admin`), which can edit or remove anyone's RSVP and shows a host-mode banner
+  with a leave link — can change an existing RSVP.
 - Every dated event gets **add-to-calendar links** (Google, Outlook, Yahoo, and
   an ICS file for everything else), and pages carry
   OpenGraph tags so the link unfurl in Signal/Discord/iMessage looks like an

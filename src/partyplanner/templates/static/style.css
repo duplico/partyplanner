@@ -23,9 +23,7 @@ main {
 }
 
 /* Host-mode banner: every RSVP is editable/removable while this is up. */
-body.admin::before {
-  content: "Host mode — you can edit or remove anyone's RSVP";
-  display: block;
+.admin-banner {
   background: var(--accent);
   color: #fff;
   text-align: center;
@@ -33,6 +31,16 @@ body.admin::before {
   font-size: 0.9em;
   font-weight: 600;
 }
+.admin-banner a { color: inherit; }
+
+/* Standing reminder of the visitor's private edit link */
+.me-link {
+  margin-top: 2rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.me-link a { color: var(--accent); }
 
 header { text-align: center; margin-bottom: 2rem; }
 h1 { font-size: 2rem; margin: 0.75rem 0 0.25rem; }
