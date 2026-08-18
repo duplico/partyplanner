@@ -214,7 +214,9 @@
       var payload = {
         token: token,
         event_id: eventId,
-        name: form.elements.name.value.trim(),
+        // Whitespace-normalized like the server, so rename detection can't
+        // mistake a stray space for a different name.
+        name: form.elements.name.value.trim().replace(/\s+/g, " "),
         response: form.elements.response.value,
         party_size: parseInt(form.elements.party_size.value || "0", 10),
       };
