@@ -94,7 +94,11 @@ invariant here is a bug, and any proposed change should be checked against it.
   bookmark stores. Mitigated by the share warning and referrer policy;
   accepted for the bookmarkability it buys. Opening someone else's edit link
   acts with their key for that visit only — it never replaces a key this
-  browser already saved.
+  browser already saved. That includes creation: a new RSVP made during such
+  a visit binds to the lender's key (the lender controls it; the visitor's
+  own key never can), the same "you are that identity for the visit"
+  semantics as shared devices. The remedy is the same too: the host deletes
+  the row and the person re-RSVPs without the borrowed link.
 - **Name squatting.** A link-holder can RSVP under someone else's name before
   they do. Accepted because names aren't unique to begin with — the social
   graph's trust is load-bearing here, and people who share a name work it out
