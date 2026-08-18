@@ -71,7 +71,7 @@
     var params = new URLSearchParams(location.search);
     params.delete("me");
     var qs = params.toString();
-    leave.href = location.pathname + (qs ? "?" + qs : "");
+    leave.href = location.pathname + (qs ? "?" + qs : "") + location.hash;
     banner.appendChild(leave);
     document.body.insertBefore(banner, document.body.firstChild);
   }
