@@ -155,7 +155,12 @@ class FakeTable:
         return {"Item": item} if item else {}
 
     def query(
-        self, KeyConditionExpression, ExpressionAttributeValues, Limit=None, ExclusiveStartKey=None
+        self,
+        KeyConditionExpression,
+        ExpressionAttributeValues,
+        Limit=None,
+        ExclusiveStartKey=None,
+        ConsistentRead=False,
     ):
         pk = ExpressionAttributeValues[":pk"]
         items = self.rsvps.get(pk, [])
@@ -224,7 +229,12 @@ class FakeTable:
 
 class PagingTable(FakeTable):
     def query(
-        self, KeyConditionExpression, ExpressionAttributeValues, Limit=None, ExclusiveStartKey=None
+        self,
+        KeyConditionExpression,
+        ExpressionAttributeValues,
+        Limit=None,
+        ExclusiveStartKey=None,
+        ConsistentRead=False,
     ):
         pk = ExpressionAttributeValues[":pk"]
         items = self.rsvps.get(pk, [])
