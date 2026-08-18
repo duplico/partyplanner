@@ -144,6 +144,17 @@ def test_store_edit_key_spans_events():
     assert state["events"]["b"][0]["mine"] is True
 
 
+def test_store_unknown_key_never_binds_to_new_row():
+    store = PreviewStore(_occasion())
+    chosen = "strangerchosenkey222"
+    result = store.rsvp(
+        {"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes", "me": chosen}
+    )
+    assert result["me"] != chosen
+    assert TOKEN_RE.match(result["me"])
+    assert store.state(TOKEN, me=chosen)["events"]["a"][0]["mine"] is False
+
+
 def test_store_remove_requires_owner_or_admin():
     store = PreviewStore(_occasion(admin_key=ADMIN_KEY))
     first = store.rsvp({"token": TOKEN, "event_id": "a", "name": "Pat", "response": "yes"})

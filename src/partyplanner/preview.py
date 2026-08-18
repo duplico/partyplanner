@@ -185,7 +185,14 @@ class PreviewStore:
                     "that name already has an RSVP here — use your private edit link to change it"
                 )
             # Admin edits never claim a row: a keyless row stays claimable by its owner.
-            edit_key = owner_key if admin else (owner_key or me or mint_token())
+            # A supplied key binds to a new row only if the server minted it before
+            # (it already owns a row here); anything else gets a fresh mint.
+            if admin or owner_key:
+                edit_key = owner_key
+            elif me and any(r.get("edit_key") == me for r in self.rsvps.values()):
+                edit_key = me
+            else:
+                edit_key = mint_token()
             self.rsvps[(event_id, name.casefold())] = {
                 "name": name,
                 "response": response,

@@ -26,6 +26,7 @@ import re
 import secrets
 
 import boto3
+from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 
 TOKEN_RE = re.compile(r"^[a-z2-7]{16,64}\Z")
@@ -66,6 +67,21 @@ class Forbidden(Exception):
 
 def mint_key() -> str:
     return base64.b32encode(secrets.token_bytes(12)).decode("ascii").rstrip("=").lower()
+
+
+def key_owns_a_row(me: str) -> bool:
+    """True if this key is already bound to an RSVP row in the occasion."""
+    kwargs: dict = {
+        "FilterExpression": Attr("edit_key").eq(me) & Attr("pk").begins_with("EVENT#"),
+    }
+    while True:
+        page = table().scan(**kwargs)
+        if page.get("Items"):
+            return True
+        last = page.get("LastEvaluatedKey")
+        if not last:
+            return False
+        kwargs["ExclusiveStartKey"] = last
 
 
 def is_admin(me: str | None) -> bool:
@@ -199,7 +215,14 @@ def put_rsvp(rsvp: dict) -> dict:
             "that name already has an RSVP here — use your private edit link to change it"
         )
     # Admin edits never claim a row: a keyless row stays claimable by its owner.
-    edit_key = owner_key if admin else (owner_key or me or mint_key())
+    # A supplied key binds to a new row only if the server minted it before
+    # (it already owns a row here); anything else gets a fresh mint.
+    if admin or owner_key:
+        edit_key = owner_key
+    elif me and key_owns_a_row(me):
+        edit_key = me
+    else:
+        edit_key = mint_key()
     now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     update = (
         "SET #n = :name, #r = :response, party_size = :party_size, "

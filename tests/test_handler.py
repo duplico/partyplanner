@@ -144,6 +144,7 @@ class FakeTable:
         self.updates = []
         self.deletes = []
         self.consistent_reads = []
+        self.scans = []
 
     def get_item(self, Key, ConsistentRead=False):
         self.consistent_reads.append(ConsistentRead)
@@ -156,6 +157,21 @@ class FakeTable:
     def query(self, KeyConditionExpression, ExpressionAttributeValues):
         pk = ExpressionAttributeValues[":pk"]
         return {"Items": self.rsvps.get(pk, [])}
+
+    def scan(self, FilterExpression, ExclusiveStartKey=None):
+        # emulates the one scan shape the handler uses:
+        # Attr("edit_key").eq(me) & Attr("pk").begins_with("EVENT#")
+        self.scans.append(FilterExpression)
+        eq, begins = FilterExpression.get_expression()["values"]
+        assert eq.get_expression()["values"][0].name == "edit_key"
+        assert begins.get_expression()["values"][1] == "EVENT#"
+        target = eq.get_expression()["values"][1]
+        items = [
+            row
+            for (pk, sk), row in self.rows.items()
+            if pk.startswith("EVENT#") and row.get("edit_key") == target
+        ]
+        return {"Items": items}
 
     @staticmethod
     def _condition_failed():
@@ -317,6 +333,24 @@ def test_put_rsvp_claims_legacy_row_without_edit_key(monkeypatch):
     result = handler.put_rsvp(handler.parse_rsvp(_rsvp_body()))
     assert handler.TOKEN_RE.match(result["me"])
     assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == result["me"]
+
+
+def test_unknown_key_never_binds_to_new_or_keyless_row(monkeypatch):
+    # keys are only ever server-minted: a client-chosen key (including a
+    # minted-but-unsynced admin key) never becomes a row's edit key
+    table = FakeTable(
+        links=LINKS,
+        rsvps={"EVENT#bbq": [{"name": "Sam", "response": "maybe", "party_size": 0}]},
+    )
+    monkeypatch.setattr(handler, "table", lambda: table)
+    chosen = "strangerchosenkey222"
+    fresh = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(me=chosen)))
+    assert fresh["me"] != chosen
+    assert handler.TOKEN_RE.match(fresh["me"])
+    assert table.rows[("EVENT#bbq", "NAME#aaron")]["edit_key"] == fresh["me"]
+    claimed = handler.put_rsvp(handler.parse_rsvp(_rsvp_body(name="Sam", me=chosen)))
+    assert claimed["me"] != chosen
+    assert table.rows[("EVENT#bbq", "NAME#sam")]["edit_key"] == claimed["me"]
 
 
 def test_admin_key_edits_and_removes_any_row(monkeypatch):

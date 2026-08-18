@@ -41,9 +41,11 @@ invariant here is a bug, and any proposed change should be checked against it.
 
 1. Keys are 96-bit `secrets`-random base32; format-validated (`^[a-z2-7]{16,64}$`)
    everywhere they cross a trust boundary.
-2. A guest edit key is bound to a row **by the server**, and returned only to
-   the writer of a successful non-admin write. Clients never pick which key a
-   row gets bound to on the victim's behalf (see "unvetted keys" below).
+2. Keys are only ever minted by the server or the `partyplanner` CLI. A
+   client-supplied key binds to a new row only if the server already knows it
+   (it owns another row in the occasion, which is exactly the cross-event
+   reuse case); any other value gets a fresh server-minted key. A key is
+   returned only to the writer of a successful non-admin write.
 3. One key per person per occasion: the same key is reused and honored across
    all events reachable from the invitation.
 
@@ -85,16 +87,15 @@ invariant here is a bug, and any proposed change should be checked against it.
   bookmark stores. Mitigated by the share warning and referrer policy;
   accepted for the bookmarkability it buys.
 - **Name squatting.** A link-holder can RSVP under someone else's name before
-  they do. The claimed-name 403 makes it visible, and the host can delete the
-  squatter. Accepted: the audience is a trusted social circle.
+  they do. Accepted because names aren't unique to begin with — the social
+  graph's trust is load-bearing here, and people who share a name work it out
+  themselves without a control required. The claimed-name 403 makes
+  collisions visible, and the host can delete a bad-faith squatter.
 - **Keyless-row claims.** Pre-upgrade rows and host-entered rows are claimable
   by the first ordinary write from a link-holder. The alternative (locking
   them) would strand guests whose RSVP the host typed in for them. The host
   can always repair a hijacked row.
-- **Server-side `me` adoption.** A *direct API caller* creating a new row may
-  supply their own key value rather than receiving a minted one. They only
-  ever gain control of a row they created themselves, so no one else's
-  authority is affected; the browser client never does this (invariant 12).
+
 
 ## Checklist for changes
 
