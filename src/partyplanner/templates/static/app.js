@@ -190,9 +190,11 @@
     var owned = rsvps.filter(function (r) { return r.mine; });
     // One key can own several rows on an event, so the form edits the owned
     // row matching the typed name — or the first one when the field is empty.
-    // A value seeded from another event counts as empty: an owned row on
-    // this event knows better than a cross-event guess.
-    var seeded = form.dataset.seeded && form.elements.name.value === form.dataset.seeded;
+    // A value guessed from another event counts as empty: an owned row on
+    // this event knows better. A host-prefilled name is deliberate and only
+    // yields to the visitor's own submitted name, never to an owned row here.
+    var seeded = form.dataset.guessed && form.dataset.seeded &&
+      form.elements.name.value === form.dataset.seeded;
     var typed = seeded ? "" : form.elements.name.value.trim().replace(/\s+/g, " ").toLowerCase();
     var mine = null;
     owned.forEach(function (r) {
@@ -214,6 +216,7 @@
     if (!form.elements.name.value || seeded) {
       form.elements.name.value = mine.name;
       delete form.dataset.seeded;
+      delete form.dataset.guessed;
     }
     // Only fill response/party_size the first time this row appears —
     // a later refresh must not revert choices typed but not yet submitted.
@@ -280,15 +283,14 @@
         if (seed) {
           document.querySelectorAll("[data-form]").forEach(function (form) {
             var input = form.elements.name;
-            // A field still holding an untouched earlier seed is fair game,
-            // so a rename on one event flows through to the others.
+            // A field still holding an untouched earlier seed (guess or
+            // host prefill) is fair game: the visitor's own submitted name
+            // is authoritative, and a rename flows through to the others.
             if (!input.value || (form.dataset.seeded && input.value === form.dataset.seeded)) {
               input.value = seed;
-              // Only the cross-event guess gets the marker: the host's
-              // prefill name is deliberate, so an owned row on the event
-              // must not override it.
-              if (myGuess) form.dataset.seeded = seed;
-              else delete form.dataset.seeded;
+              form.dataset.seeded = seed;
+              if (myGuess) form.dataset.guessed = "1";
+              else delete form.dataset.guessed;
             }
           });
         }
@@ -307,6 +309,7 @@
     // ever applies to a value the visitor never touched.
     form.elements.name.addEventListener("input", function () {
       delete form.dataset.seeded;
+      delete form.dataset.guessed;
     });
     form.addEventListener("submit", function (evt) {
       evt.preventDefault();
