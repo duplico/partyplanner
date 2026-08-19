@@ -295,6 +295,11 @@
   }
 
   document.querySelectorAll("[data-form]").forEach(function (form) {
+    // Any keystroke makes the name the visitor's own; the seeded marker only
+    // ever applies to a value the visitor never touched.
+    form.elements.name.addEventListener("input", function () {
+      delete form.dataset.seeded;
+    });
     form.addEventListener("submit", function (evt) {
       evt.preventDefault();
       var eventId = form.getAttribute("data-form");
