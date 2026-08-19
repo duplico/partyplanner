@@ -190,7 +190,13 @@
     var owned = rsvps.filter(function (r) { return r.mine; });
     // One key can own several rows on an event, so the form edits the owned
     // row matching the typed name — or the first one when the field is empty.
-    var typed = form.elements.name.value.trim().replace(/\s+/g, " ").toLowerCase();
+    // A value guessed from another event counts as empty: an owned row on
+    // this event knows better. An untouched host-prefilled name is left
+    // alone here — only refresh()'s seeding may replace it, with the name
+    // the visitor actually submitted elsewhere.
+    var seeded = form.dataset.guessed && form.dataset.seeded &&
+      form.elements.name.value === form.dataset.seeded;
+    var typed = seeded ? "" : form.elements.name.value.trim().replace(/\s+/g, " ").toLowerCase();
     var mine = null;
     owned.forEach(function (r) {
       if (!mine && r.name.toLowerCase() === typed) mine = r;
@@ -208,7 +214,11 @@
       }
       return;
     }
-    if (!form.elements.name.value) form.elements.name.value = mine.name;
+    if (!form.elements.name.value || seeded) {
+      form.elements.name.value = mine.name;
+      delete form.dataset.seeded;
+      delete form.dataset.guessed;
+    }
     // Only fill response/party_size the first time this row appears —
     // a later refresh must not revert choices typed but not yet submitted.
     if (form.dataset.prefilled !== mine.name) {
@@ -217,6 +227,19 @@
     }
     form.dataset.prefilled = mine.name;
     form.querySelector('button[type="submit"]').textContent = "Update RSVP";
+  }
+
+  // The next event down the page the visitor hasn't RSVP'd to yet
+  // (no owned row after the latest refresh), if any.
+  function nextUnansweredEvent(afterEventId) {
+    var forms = document.querySelectorAll("[data-form]");
+    var seen = false;
+    for (var i = 0; i < forms.length; i++) {
+      var id = forms[i].getAttribute("data-form");
+      if (id === afterEventId) { seen = true; continue; }
+      if (seen && !forms[i].dataset.prefilled) return id;
+    }
+    return null;
   }
 
   function refresh() {
@@ -241,9 +264,35 @@
           renderEvent(eventId, state.events[eventId], (state.more || {})[eventId] || 0);
           prefillMine(eventId, state.events[eventId]);
         });
-        if (state.prefill) {
-          document.querySelectorAll('.rsvp-form input[name="name"]').forEach(function (input) {
-            if (!input.value) input.value = state.prefill;
+        // One identity spans the whole occasion, so a name known from the
+        // visitor's owned rows seeds the empty forms of events not yet
+        // answered — but only when it's unambiguous: a key owning rows under
+        // several names (self + guests) gives no safe guess.
+        var myName = "";
+        var ambiguous = false;
+        if (!isAdmin) {
+          Object.keys(state.events).forEach(function (eventId) {
+            state.events[eventId].forEach(function (r) {
+              if (!r.mine) return;
+              if (!myName) myName = r.name;
+              else if (r.name.toLowerCase() !== myName.toLowerCase()) ambiguous = true;
+            });
+          });
+        }
+        var myGuess = (!ambiguous && myName) || "";
+        var seed = myGuess || state.prefill;
+        if (seed) {
+          document.querySelectorAll("[data-form]").forEach(function (form) {
+            var input = form.elements.name;
+            // A field still holding an untouched earlier seed (guess or
+            // host prefill) is fair game: the visitor's own submitted name
+            // is authoritative, and a rename flows through to the others.
+            if (!input.value || (form.dataset.seeded && input.value === form.dataset.seeded)) {
+              input.value = seed;
+              form.dataset.seeded = seed;
+              if (myGuess) form.dataset.guessed = "1";
+              else delete form.dataset.guessed;
+            }
           });
         }
       })
@@ -257,6 +306,12 @@
   }
 
   document.querySelectorAll("[data-form]").forEach(function (form) {
+    // Any keystroke makes the name the visitor's own; the seeded marker only
+    // ever applies to a value the visitor never touched.
+    form.elements.name.addEventListener("input", function () {
+      delete form.dataset.seeded;
+      delete form.dataset.guessed;
+    });
     form.addEventListener("submit", function (evt) {
       evt.preventDefault();
       var eventId = form.getAttribute("data-form");
@@ -350,7 +405,20 @@
               }
             }
           }
-          return refresh();
+          return refresh().then(function () {
+            if (!status || isAdmin) return;
+            var nextId = nextUnansweredEvent(eventId);
+            if (!nextId) return;
+            status.appendChild(document.createTextNode(" "));
+            var next = el("a", "next-event", "Next event ↓");
+            next.href = "#" + nextId;
+            next.addEventListener("click", function (clickEvt) {
+              clickEvt.preventDefault();
+              var target = document.getElementById(nextId);
+              if (target) target.scrollIntoView({ behavior: "smooth" });
+            });
+            status.appendChild(next);
+          });
         })
         .catch(function (err) {
           if (status) {
