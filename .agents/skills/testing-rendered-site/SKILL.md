@@ -67,6 +67,18 @@ reloads but not process restarts.
   it must be absent for fresh visitors, in admin mode, and on borrowed `?me=`
   links (a borrowed URL key also never overwrites the saved identity).
 
+## Live stage testing (deployed AWS, e.g. https://2026-stage.allhallowcon.com)
+- Same client code paths as preview; slugged links look like `/i/party-p7tlur2wro/`.
+  The occasion admin key comes from the lead/user (sensitive — don't zoom the URL bar).
+- Live data is shared: RSVP only under throwaway names, remove them at the end, and
+  never touch existing rows (verify with a read-only visit + screenshot).
+- The `.me-link` private-edit-link note renders as a BANNER at the top of the page
+  in current builds (not at the bottom of `<main>`) — scroll to top to capture it.
+- Before using browser_console, close ALL stale Chrome windows (`wmctrl -l` /
+  `wmctrl -ic <id>`) — with multiple windows the CDP tool may attach to an old one.
+- A fresh incognito window gives clean localStorage for the stage origin, but only
+  if no other incognito windows are still open from prior runs.
+
 ## What to check
 - Tokens live in the fixture YAMLs (`links:` in the config, or the sibling
   machine-generated `.links.yaml`); the revoked one for allhallowtide
