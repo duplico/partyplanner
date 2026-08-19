@@ -72,7 +72,7 @@ def test_links_output_aligns_urls_in_a_column(tmp_path: Path, monkeypatch):
     assert result.exit_code == 0
     lines = result.output.splitlines()
     assert len(lines) == 2
-    positions = {line.index("https://") for line in lines}
+    positions = {line.rindex("https://") for line in lines}
     assert len(positions) == 1
     assert "\t" not in result.output
 
