@@ -191,8 +191,9 @@
     // One key can own several rows on an event, so the form edits the owned
     // row matching the typed name — or the first one when the field is empty.
     // A value guessed from another event counts as empty: an owned row on
-    // this event knows better. A host-prefilled name is deliberate and only
-    // yields to the visitor's own submitted name, never to an owned row here.
+    // this event knows better. An untouched host-prefilled name is left
+    // alone here — only refresh()'s seeding may replace it, with the name
+    // the visitor actually submitted elsewhere.
     var seeded = form.dataset.guessed && form.dataset.seeded &&
       form.elements.name.value === form.dataset.seeded;
     var typed = seeded ? "" : form.elements.name.value.trim().replace(/\s+/g, " ").toLowerCase();
