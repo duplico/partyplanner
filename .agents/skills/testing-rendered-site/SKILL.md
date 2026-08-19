@@ -75,8 +75,10 @@ reloads but not process restarts.
   never touch existing rows (verify with a read-only visit + screenshot).
 - The `.me-link` private-edit-link note renders as a BANNER at the top of the page
   in current builds (not at the bottom of `<main>`) — scroll to top to capture it.
-- Before using browser_console, close ALL stale Chrome windows (`wmctrl -l` /
-  `wmctrl -ic <id>`) — with multiple windows the CDP tool may attach to an old one.
+- Before using browser_console, close ALL stale Chrome windows — with multiple
+  windows the CDP tool may attach to an old one. Use `wmctrl -l` / `wmctrl -ic <id>`
+  if available (`apt-get install wmctrl` otherwise), or list and close targets via
+  the CDP endpoint directly (`curl http://localhost:29229/json/list`).
 - A fresh incognito window gives clean localStorage for the stage origin, but only
   if no other incognito windows are still open from prior runs.
 
