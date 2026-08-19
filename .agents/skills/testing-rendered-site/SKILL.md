@@ -77,8 +77,8 @@ reloads but not process restarts.
   in current builds (not at the bottom of `<main>`) — scroll to top to capture it.
 - Before using browser_console, close ALL stale Chrome windows — with multiple
   windows the CDP tool may attach to an old one. Use `wmctrl -l` / `wmctrl -ic <id>`
-  if available (`apt-get install wmctrl` otherwise), or list and close targets via
-  the CDP endpoint directly (`curl http://localhost:29229/json/list`).
+  if available, or list and close targets via the browser's CDP endpoint
+  (`curl http://localhost:<cdp-port>/json/list` — port is in the environment notes).
 - A fresh incognito window gives clean localStorage for the stage origin, but only
   if no other incognito windows are still open from prior runs.
 
