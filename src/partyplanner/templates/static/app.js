@@ -190,7 +190,10 @@
     var owned = rsvps.filter(function (r) { return r.mine; });
     // One key can own several rows on an event, so the form edits the owned
     // row matching the typed name — or the first one when the field is empty.
-    var typed = form.elements.name.value.trim().replace(/\s+/g, " ").toLowerCase();
+    // A value seeded from another event counts as empty: an owned row on
+    // this event knows better than a cross-event guess.
+    var seeded = form.dataset.seeded && form.elements.name.value === form.dataset.seeded;
+    var typed = seeded ? "" : form.elements.name.value.trim().replace(/\s+/g, " ").toLowerCase();
     var mine = null;
     owned.forEach(function (r) {
       if (!mine && r.name.toLowerCase() === typed) mine = r;
@@ -208,7 +211,10 @@
       }
       return;
     }
-    if (!form.elements.name.value) form.elements.name.value = mine.name;
+    if (!form.elements.name.value || seeded) {
+      form.elements.name.value = mine.name;
+      delete form.dataset.seeded;
+    }
     // Only fill response/party_size the first time this row appears —
     // a later refresh must not revert choices typed but not yet submitted.
     if (form.dataset.prefilled !== mine.name) {
@@ -254,20 +260,28 @@
           renderEvent(eventId, state.events[eventId], (state.more || {})[eventId] || 0);
           prefillMine(eventId, state.events[eventId]);
         });
-        // One identity spans the whole occasion, so a name known from any
-        // owned row seeds the empty forms of events not yet answered.
+        // One identity spans the whole occasion, so a name known from the
+        // visitor's owned rows seeds the empty forms of events not yet
+        // answered — but only when it's unambiguous: a key owning rows under
+        // several names (self + guests) gives no safe guess.
         var myName = "";
+        var ambiguous = false;
         if (!isAdmin) {
           Object.keys(state.events).forEach(function (eventId) {
             state.events[eventId].forEach(function (r) {
-              if (!myName && r.mine) myName = r.name;
+              if (!r.mine) return;
+              if (!myName) myName = r.name;
+              else if (r.name.toLowerCase() !== myName.toLowerCase()) ambiguous = true;
             });
           });
         }
-        var seed = myName || state.prefill;
+        var seed = (!ambiguous && myName) || state.prefill;
         if (seed) {
-          document.querySelectorAll('.rsvp-form input[name="name"]').forEach(function (input) {
-            if (!input.value) input.value = seed;
+          document.querySelectorAll("[data-form]").forEach(function (form) {
+            if (!form.elements.name.value) {
+              form.elements.name.value = seed;
+              form.dataset.seeded = seed;
+            }
           });
         }
       })
