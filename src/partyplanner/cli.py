@@ -107,10 +107,14 @@ def preview(config_path: Path, port: int, host: str, open_browser: bool) -> None
 
 
 def _print_links(occasion) -> None:
+    rows = []
     for link in occasion.links:
         label = link.prefill_name or link.note or "(unlabeled)"
         url = f"https://{occasion.domain}/i/{link.token}/" if link.token else "(no token yet)"
-        click.echo(f"{label}\t{url}")
+        rows.append((label, url))
+    width = max((len(label) for label, _ in rows), default=0)
+    for label, url in rows:
+        click.echo(f"{label:<{width}}  {url}")
 
 
 @main.command()
@@ -163,7 +167,7 @@ def link_add(
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
     label = new.prefill_name or new.note or "(unlabeled)"
-    click.echo(f"{label}\thttps://{occasion.domain}/i/{new.token}/")
+    click.echo(f"{label}  https://{occasion.domain}/i/{new.token}/")
 
 
 @link.command("admin")

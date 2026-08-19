@@ -61,6 +61,22 @@ def test_binary_links_file_is_a_clean_error(tmp_path: Path):
     assert "Traceback" not in result.output
 
 
+def test_links_output_aligns_urls_in_a_column(tmp_path: Path, monkeypatch):
+    _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    long_note = "All events (including travel)"
+    assert runner.invoke(main, ["link", "add", "--note", long_note]).exit_code == 0
+    assert runner.invoke(main, ["link", "add", "--note", "Party only"]).exit_code == 0
+    result = runner.invoke(main, ["links"])
+    assert result.exit_code == 0
+    lines = result.output.splitlines()
+    assert len(lines) == 2
+    positions = {line.rindex("https://") for line in lines}
+    assert len(positions) == 1
+    assert "\t" not in result.output
+
+
 def test_link_revoke_takes_token_first(tmp_path: Path, monkeypatch):
     _write_config(tmp_path)
     monkeypatch.chdir(tmp_path)

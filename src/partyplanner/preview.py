@@ -357,6 +357,12 @@ def make_server(
     return ThreadingHTTPServer((host, port), partial(handler, directory=str(site_dir)))
 
 
+def echo_urls(echo, urls: list[tuple[str, str]]) -> None:
+    width = max((len(label) for label, _ in urls), default=0)
+    for label, url in urls:
+        echo(f"  {label:<{width}}  {url}")
+
+
 def preview_urls(occasion: Occasion, base: str) -> list[tuple[str, str]]:
     """(label, local URL) pairs: the landing page plus every link's page."""
     urls = [("landing page", f"{base}/")]
@@ -452,8 +458,7 @@ class Reloader:
         self.echo(f"re-rendered at {dt.datetime.now():%H:%M:%S}")
         urls = preview_urls(fresh, self.base)
         if urls != urls_before:
-            for label, url in urls:
-                self.echo(f"  {label}\t{url}")
+            echo_urls(self.echo, urls)
         return True
 
     def watch(self, stop: threading.Event, interval: float = 1.0) -> None:
@@ -496,8 +501,7 @@ def run_preview(
         rendered_at = dt.datetime.now().strftime("%H:%M:%S")
         echo(f"previewing {occasion.title!r} (rendered {rendered_at}; Ctrl+C to stop)")
         echo("watching for changes — edits re-render and refresh the browser")
-        for label, url in preview_urls(occasion, base):
-            echo(f"  {label}\t{url}")
+        echo_urls(echo, preview_urls(occasion, base))
         reloader = Reloader(config_path, out_dir, store, reload_state, base, occasion, echo)
         stop = threading.Event()
         watcher = threading.Thread(target=reloader.watch, args=(stop,), daemon=True)
