@@ -219,6 +219,19 @@
     form.querySelector('button[type="submit"]').textContent = "Update RSVP";
   }
 
+  // The next event down the page the visitor hasn't RSVP'd to yet
+  // (no owned row after the latest refresh), if any.
+  function nextUnansweredEvent(afterEventId) {
+    var forms = document.querySelectorAll("[data-form]");
+    var seen = false;
+    for (var i = 0; i < forms.length; i++) {
+      var id = forms[i].getAttribute("data-form");
+      if (id === afterEventId) { seen = true; continue; }
+      if (seen && !forms[i].dataset.prefilled) return id;
+    }
+    return null;
+  }
+
   function refresh() {
     var url = "/api/state?t=" + token + (me ? "&me=" + me : "");
     return fetch(url)
@@ -241,9 +254,20 @@
           renderEvent(eventId, state.events[eventId], (state.more || {})[eventId] || 0);
           prefillMine(eventId, state.events[eventId]);
         });
-        if (state.prefill) {
+        // One identity spans the whole occasion, so a name known from any
+        // owned row seeds the empty forms of events not yet answered.
+        var myName = "";
+        if (!isAdmin) {
+          Object.keys(state.events).forEach(function (eventId) {
+            state.events[eventId].forEach(function (r) {
+              if (!myName && r.mine) myName = r.name;
+            });
+          });
+        }
+        var seed = myName || state.prefill;
+        if (seed) {
           document.querySelectorAll('.rsvp-form input[name="name"]').forEach(function (input) {
-            if (!input.value) input.value = state.prefill;
+            if (!input.value) input.value = seed;
           });
         }
       })
@@ -350,7 +374,20 @@
               }
             }
           }
-          return refresh();
+          return refresh().then(function () {
+            if (!status || isAdmin) return;
+            var nextId = nextUnansweredEvent(eventId);
+            if (!nextId) return;
+            status.appendChild(document.createTextNode(" "));
+            var next = el("a", "next-event", "Next event ↓");
+            next.href = "#" + nextId;
+            next.addEventListener("click", function (clickEvt) {
+              clickEvt.preventDefault();
+              var target = document.getElementById(nextId);
+              if (target) target.scrollIntoView({ behavior: "smooth" });
+            });
+            status.appendChild(next);
+          });
         })
         .catch(function (err) {
           if (status) {
