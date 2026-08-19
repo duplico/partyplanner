@@ -67,9 +67,10 @@ reloads but not process restarts.
   it must be absent for fresh visitors, in admin mode, and on borrowed `?me=`
   links (a borrowed URL key also never overwrites the saved identity).
 
-## Live stage testing (deployed AWS, e.g. https://2026-stage.allhallowcon.com)
-- Same client code paths as preview; slugged links look like `/i/party-p7tlur2wro/`.
-  The occasion admin key comes from the lead/user (sensitive — don't zoom the URL bar).
+## Live stage testing (a deployed AWS occasion)
+- Same client code paths as preview; slugged links look like `/i/<slug>-<token>/`.
+  Get the current site URL, link tokens, and admin key from the lead/user or the
+  events repo's `.links.yaml` (admin key is sensitive — don't zoom the URL bar).
 - Live data is shared: RSVP only under throwaway names, remove them at the end, and
   never touch existing rows (verify with a read-only visit + screenshot).
 - The `.me-link` private-edit-link note renders as a BANNER at the top of the page
