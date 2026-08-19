@@ -275,12 +275,20 @@
             });
           });
         }
-        var seed = (!ambiguous && myName) || state.prefill;
+        var myGuess = (!ambiguous && myName) || "";
+        var seed = myGuess || state.prefill;
         if (seed) {
           document.querySelectorAll("[data-form]").forEach(function (form) {
-            if (!form.elements.name.value) {
-              form.elements.name.value = seed;
-              form.dataset.seeded = seed;
+            var input = form.elements.name;
+            // A field still holding an untouched earlier seed is fair game,
+            // so a rename on one event flows through to the others.
+            if (!input.value || (form.dataset.seeded && input.value === form.dataset.seeded)) {
+              input.value = seed;
+              // Only the cross-event guess gets the marker: the host's
+              // prefill name is deliberate, so an owned row on the event
+              // must not override it.
+              if (myGuess) form.dataset.seeded = seed;
+              else delete form.dataset.seeded;
             }
           });
         }
