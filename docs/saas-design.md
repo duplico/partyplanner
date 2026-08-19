@@ -191,9 +191,14 @@ holds.
 
 | Position | Stored | Buys | Costs |
 |---|---|---|---|
-| **Nothing** (self-hosted default) | — | no PII at rest, no data-subject obligations | no recovery at all |
-| **Salted hash** (service default) | `sha256(salt + address)` per occasion | "I lost my link": re-type the address, re-send | can't contact hosts proactively |
+| **Nothing** (**the default everywhere**, including a hosted service) | — | no PII at rest, no data-subject obligations | no recovery at all |
+| **Salted hash** (opt-in per occasion) | `sha256(salt + address)` per occasion | "I lost my link": re-type the address, re-send | can't contact hosts proactively |
 | **Plaintext** | address | digests, expiry nags | the thing you're trying to avoid |
+
+Decided: store nothing by default even in destination C, and let a host opt into
+the hash if they want recovery. Losing your link is then the same class of
+problem as losing any other capability here, which is consistent with how guests
+are already treated.
 
 Caveats that apply to all three: the mail provider still logs the send, so
 "we store nothing" is true of your database and not of the whole system; and
@@ -237,8 +242,7 @@ every destination above:
    operator.
 2. **Do cohosts get GitHub accounts?** If yes, the interim PR-preview work may be
    the whole answer to question 1.
-3. **Which email position** is the default for a hosted service.
-4. **Licensing**, if D is ever real.
+3. **Licensing**, if D is ever real.
 
 ## Filed issues
 
