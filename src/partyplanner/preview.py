@@ -289,7 +289,25 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             return
         if self.reload_state is not None and self._serve_html_with_reload(url.path):
             return
+        if url.path.startswith("/i/") and self._serve_error_page(url.path):
+            return
         super().do_GET()
+
+    def _serve_error_page(self, url_path: str) -> bool:
+        """Serve the friendly error page (as CloudFront does) for unknown invitation paths."""
+        if Path(self.translate_path(url_path)).exists():
+            return False
+        try:
+            content = Path(self.translate_path("/error.html")).read_bytes()
+        except OSError:
+            return False  # let the default handler 404
+        self.send_response(404)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(content)
+        return True
 
     def _serve_html_with_reload(self, url_path: str) -> bool:
         """Serve an HTML file with the auto-refresh script injected."""

@@ -130,6 +130,15 @@ def test_embed_path_escaping_config_dir_rejected(tmp_path: Path):
         render(occasion, config_dir, tmp_path / "out")
 
 
+def test_error_page_rendered_and_themed(tmp_path: Path):
+    occasion = _asset_occasion(tmp_path, theme={"accent": "#123456"})
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "error.html").read_text()
+    assert "That invitation link isn't valid" in page
+    assert '<a href="/">' in page
+    assert "--accent: #123456;" in page
+
+
 def test_markdown_blurbs_render(tmp_path: Path):
     occasion = _asset_occasion(
         tmp_path,

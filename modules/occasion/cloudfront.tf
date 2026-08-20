@@ -146,6 +146,17 @@ resource "aws_cloudfront_distribution" "site" {
     response_headers_policy_id = aws_cloudfront_response_headers_policy.site.id
   }
 
+  # Friendly page for unknown paths (bad/revoked invitation tokens included).
+  # Only 404 is mapped: the RSVP API's 403 bodies carry JSON the page reads,
+  # and S3 returns 404 (not 403) for missing keys because the bucket policy
+  # grants ListBucket.
+  custom_error_response {
+    error_code            = 404
+    response_code         = 404
+    response_page_path    = "/error.html"
+    error_caching_min_ttl = 60
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
