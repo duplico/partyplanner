@@ -39,11 +39,14 @@
     } catch (err) { /* ignore */ }
   }
 
-  function dropUrlKey() {
+  // `scrub` removes ?me= from the address bar too; only pass it once the
+  // server has confirmed the key is unknown — a transient load failure must
+  // leave the URL intact so a reload can recover the identity.
+  function dropUrlKey(scrub) {
     urlMe = "";
     me = "";
     meVetted = true;
-    scrubUrlKey();
+    if (scrub) scrubUrlKey();
     try {
       var fallback = localStorage.getItem(storageKey) || "";
       if (KEY_RE.test(fallback)) me = fallback;
@@ -268,7 +271,7 @@
         isAdmin = !!state.admin;
         document.body.classList.toggle("admin", isAdmin);
         if (me && me === urlMe && !isAdmin && !state.known) {
-          dropUrlKey();
+          dropUrlKey(true);
           return refresh();
         }
         meVetted = true;
@@ -312,7 +315,7 @@
         }
       })
       .catch(function () {
-        if (!meVetted) dropUrlKey();
+        if (!meVetted) dropUrlKey(false);
         document.querySelectorAll(".rsvp-list").forEach(function (list) {
           list.textContent = "";
           list.appendChild(el("li", "muted", "Couldn't load RSVPs — try refreshing."));
