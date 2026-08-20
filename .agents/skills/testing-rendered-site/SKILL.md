@@ -9,7 +9,7 @@ description: How to run and end-to-end test a partyplanner rendered static site 
 ```bash
 uv sync   # uv is at ~/.local/bin/uv
 uv run partyplanner render fixtures/bbq/occasion.yaml --out out/bbq
-uv run partyplanner render fixtures/allhallowtide/occasion.yaml --out out/allhallowtide
+uv run partyplanner render src/partyplanner/example/occasion.yaml --out out/allhallowtide
 ```
 Rendered sites land in `out/<name>/site` (per-link pages at `i/<token>/index.html`,
 plus `index.html` landing, `robots.txt`, `ics/*.ics`, `assets/`).
@@ -34,7 +34,7 @@ You can run the *actual* handler locally against moto's in-memory DynamoDB:
    matching the CloudFront rewrite function in production.
 
 ## Alternative: `partyplanner preview` (in-memory API, zero deps)
-`uv run partyplanner preview fixtures/allhallowtide/occasion.yaml --port 8010`
+`uv run partyplanner preview src/partyplanner/example/occasion.yaml --port 8010`
 renders to a temp dir and serves it with an in-memory `PreviewStore` that has
 full parity with the Lambda handler (same 403 messages, RSVP edit keys, admin).
 No moto needed. It prints the link URLs plus an "admin view" URL with an
@@ -92,6 +92,5 @@ reloads but not process restarts.
   name appears in any scoped event's RSVP list.
 - Upsert: same name (casefolded) re-submitting replaces the row, never duplicates.
 - Events with `rsvp: none` (e.g. the stream card) render with no form and no list.
-
 ## Devin Secrets Needed
 None — everything runs locally with fake AWS credentials under moto.

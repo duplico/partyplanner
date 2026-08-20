@@ -5,6 +5,7 @@ from ruamel.yaml import YAML
 
 from partyplanner import config
 from partyplanner.config import ConfigError
+from partyplanner.render import render
 from partyplanner.scaffold import (
     load_repo_config,
     scaffold_bootstrap,
@@ -343,6 +344,48 @@ def test_scaffold_occasion_force_regenerates_but_keeps_config(tmp_path):
     assert occasion_yaml not in written
     tf = (tmp_path / "occasions/bbq-2026/terraform/main.tf").read_text()
     assert "modules/occasion?ref=v0.2.0" in tf
+
+
+def test_scaffold_occasion_example_emits_kitchen_sink(tmp_path):
+    written, kept = _occasion(tmp_path, example=True)
+    assert kept == []
+    occasion_dir = tmp_path / "occasions/bbq-2026"
+    text = (occasion_dir / "occasion.yaml").read_text()
+    assert "kitchen-sink example" in text
+    assert "allhallowtide.example.com" not in text
+    assert (occasion_dir / "assets" / "hero.svg") in written
+    assert (occasion_dir / "assets" / "favicon.svg") in written
+    assert (occasion_dir / "stream-embed.html") in written
+    assert (occasion_dir / "overrides" / "assets" / "custom.css") in written
+    assert not (occasion_dir / ".links.yaml").exists()
+    occasion = config.load(occasion_dir / "occasion.yaml")
+    assert occasion.domain == "bbq-2026.events.example.com"
+    assert occasion.landing is not None
+    assert any(e.rsvp == "none" for e in occasion.events)
+    assert occasion.scopes
+
+
+def test_scaffold_occasion_example_renders(tmp_path):
+    _occasion(tmp_path, example=True, timezone="America/New_York")
+    occasion_dir = tmp_path / "occasions/bbq-2026"
+    assert "timezone: America/New_York\n" in (occasion_dir / "occasion.yaml").read_text()
+    config.add_link(occasion_dir / "occasion.yaml", "full", note="group chat")
+    occasion = config.load(occasion_dir / "occasion.yaml")
+    render(occasion, occasion_dir, tmp_path / "out")
+    landing = (tmp_path / "out" / "site" / "index.html").read_text()
+    assert "fake-stream-embed" in landing
+
+
+def test_scaffold_occasion_example_force_keeps_edited_content(tmp_path):
+    _occasion(tmp_path, example=True)
+    occasion_dir = tmp_path / "occasions/bbq-2026"
+    hero = occasion_dir / "assets" / "hero.svg"
+    hero.write_text("<svg>mine</svg>\n")
+    written, kept = _occasion(tmp_path, example=True, force=True)
+    assert hero in kept
+    assert occasion_dir / "occasion.yaml" in kept
+    assert hero.read_text() == "<svg>mine</svg>\n"
+    assert occasion_dir / "terraform" / "main.tf" in written
 
 
 def test_scaffold_numeric_occasion_name_yields_valid_config(tmp_path):

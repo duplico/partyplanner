@@ -1,4 +1,4 @@
-from conftest import FIXTURES
+from conftest import EXAMPLE, FIXTURES
 from partyplanner import config
 from partyplanner.ics import calendar_links, event_ics
 
@@ -27,7 +27,7 @@ def test_ics_carriage_returns_normalized():
 
 
 def test_ics_escaping_and_folding():
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     candy = next(e for e in occasion.events if e.id == "candy")
     text = event_ics(occasion, candy, "candy")
     assert "\\n" in text  # multi-line blurb escaped
@@ -37,7 +37,7 @@ def test_ics_escaping_and_folding():
 
 
 def test_ics_explicit_end():
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     candy = next(e for e in occasion.events if e.id == "candy")
     text = event_ics(occasion, candy, "candy")
     lines = text.split("\r\n")
@@ -64,7 +64,7 @@ def test_calendar_links_bbq():
 
 
 def test_calendar_links_explicit_end():
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     candy = next(e for e in occasion.events if e.id == "candy")
     google = calendar_links(occasion, candy)[0]["url"]
     assert "dates=20261031T220000Z%2F20261101T010000Z" in google

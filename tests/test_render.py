@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FIXTURES
+from conftest import EXAMPLE, FIXTURES
 from partyplanner import config
 from partyplanner.config import ConfigError
 from partyplanner.render import render
@@ -234,8 +234,8 @@ def test_render_bbq(tmp_path: Path):
 
 
 def test_render_allhallowtide_scopes(tmp_path: Path):
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
-    render(occasion, FIXTURES / "allhallowtide", tmp_path)
+    occasion = config.load(EXAMPLE / "occasion.yaml")
+    render(occasion, EXAMPLE, tmp_path)
     site = tmp_path / "site"
 
     full = (site / "i" / "fixtureaaronfull2222" / "index.html").read_text()
@@ -277,8 +277,8 @@ def test_render_allhallowtide_scopes(tmp_path: Path):
 
 
 def test_render_theme_and_accent(tmp_path: Path):
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
-    render(occasion, FIXTURES / "allhallowtide", tmp_path)
+    occasion = config.load(EXAMPLE / "occasion.yaml")
+    render(occasion, EXAMPLE, tmp_path)
     site = tmp_path / "site"
 
     full = (site / "i" / "fixtureaaronfull2222" / "index.html").read_text()
@@ -298,8 +298,8 @@ def test_render_theme_and_accent(tmp_path: Path):
 
 
 def test_render_end_time_range(tmp_path: Path):
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
-    render(occasion, FIXTURES / "allhallowtide", tmp_path)
+    occasion = config.load(EXAMPLE / "occasion.yaml")
+    render(occasion, EXAMPLE, tmp_path)
     full = (tmp_path / "site" / "i" / "fixtureaaronfull2222" / "index.html").read_text()
     # candy ends the same day; crawl crosses midnight
     assert "Saturday, October 31, 2026 · 5:00 PM–8:00 PM CDT" in full

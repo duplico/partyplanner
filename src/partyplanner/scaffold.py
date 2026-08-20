@@ -46,6 +46,46 @@ _env = Environment(
     keep_trailing_newline=True,
 )
 
+# The canonical kitchen-sink example occasion, shipped in the package (also
+# rendered in CI and exercised by the test suite).
+EXAMPLE_DIR = Path(__file__).parent / "example"
+_EXAMPLE_HEADER = """\
+# The kitchen-sink example occasion: every config feature is demonstrated
+# (theme, favicon, landing page with photo/embed, markdown blurbs, where_url,
+# per-event photos/accents, rsvp: none, RSVP caps, assets overrides). Trim it
+# down to your event, then run `partyplanner link add` to create invitation
+# links (written to .links.yaml beside this file). Commit both.
+"""
+
+
+def _example_occasion_yaml(*, domain: str, timezone: str) -> str:
+    lines = (EXAMPLE_DIR / "occasion.yaml").read_text(encoding="utf-8").splitlines(keepends=True)
+    while lines and lines[0].startswith("#"):
+        del lines[0]
+    for i, line in enumerate(lines):
+        if line.startswith("domain:"):
+            lines[i] = f"domain: {domain}\n"
+        elif line.startswith("timezone:"):
+            lines[i] = f"timezone: {timezone}\n"
+    return _EXAMPLE_HEADER + "".join(lines)
+
+
+def _example_files(occasion_dir: Path) -> list[tuple[Path, str]]:
+    """The example's supporting files (assets, embed, overrides).
+
+    occasion.yaml is emitted separately (with the domain/timezone swapped in)
+    and .links.yaml is never copied: its fixture tokens are fake, and every
+    occasion must mint its own."""
+    files: list[tuple[Path, str]] = []
+    for src in sorted(EXAMPLE_DIR.rglob("*")):
+        if src.is_dir():
+            continue
+        rel = src.relative_to(EXAMPLE_DIR)
+        if rel.parts[0] in {"occasion.yaml", ".links.yaml"}:
+            continue
+        files.append((occasion_dir / rel, src.read_text(encoding="utf-8")))
+    return files
+
 
 def _check(pattern: re.Pattern[str], value: str, what: str) -> str:
     if not pattern.match(value):
@@ -253,12 +293,15 @@ def scaffold_occasion(
     branch: str | None = None,
     region: str | None = None,
     ref: str | None = None,
+    example: bool = False,
     force: bool = False,
 ) -> tuple[list[Path], list[Path]]:
     """Write an occasion capsule + its workflows; returns (written, kept).
 
-    Values not passed explicitly come from partyplanner.yaml at the repo root
-    and (for zone_id/role_arn) the bootstrap root's Terraform outputs."""
+    With example, occasion.yaml is the kitchen-sink example (plus its assets)
+    instead of the minimal stub. Values not passed explicitly come from
+    partyplanner.yaml at the repo root and (for zone_id/role_arn) the
+    bootstrap root's Terraform outputs."""
     repo_config = load_repo_config(root)
     state_bucket = state_bucket or repo_config.get("state_bucket")
     timezone = timezone or repo_config.get("timezone") or "America/Chicago"
@@ -317,14 +360,22 @@ def scaffold_occasion(
     def render(template: str) -> str:
         return _env.get_template(template).render(**ctx)
 
+    occasion_yaml = (
+        _example_occasion_yaml(domain=domain, timezone=timezone)
+        if example
+        else render("occasion.yaml.j2")
+    )
+    extras = _example_files(occasion_dir) if example else []
     return _write_all(
         [
-            (occasion_dir / "occasion.yaml", render("occasion.yaml.j2")),
+            (occasion_dir / "occasion.yaml", occasion_yaml),
+            *extras,
             (occasion_dir / "terraform" / "main.tf", render("occasion_main.tf.j2")),
             (workflows / f"deploy-{name}.yml", render("deploy_workflow.yml.j2")),
             (workflows / f"destroy-{name}.yml", render("destroy_workflow.yml.j2")),
         ],
         force=force,
-        # never regenerate over hand-edited config (holds minted ids/tokens)
-        preserve=frozenset({occasion_dir / "occasion.yaml"}),
+        # never regenerate over hand-edited content (config holds minted
+        # ids/tokens; example assets are the user's to replace)
+        preserve=frozenset({occasion_dir / "occasion.yaml", *(path for path, _ in extras)}),
     )
