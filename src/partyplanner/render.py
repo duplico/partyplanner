@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import re
 import shutil
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
 from defusedcsv import csv
@@ -77,8 +77,15 @@ def _contained(base: Path, rel: str) -> Path:
     return path
 
 
-def _copy_asset(src: Path, rel: str, img_dir: Path) -> str:
-    dest = _contained(img_dir, rel)
+def _copy_asset(src: Path, rel: str, img_dir: Path, copied: dict[Path, Path]) -> str:
+    # Config paths conventionally live under assets/; dropping that leading
+    # segment avoids doubled URLs like /assets/img/assets/hero.svg.
+    parts = PurePosixPath(rel).parts
+    if parts and parts[0] == "assets":
+        parts = parts[1:]
+    dest = _contained(img_dir, "/".join(parts))
+    if copied.setdefault(dest, src) != src:
+        raise ConfigError(f"asset {rel!r} collides with another asset at the same output path")
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dest)
     return f"/assets/img/{dest.relative_to(img_dir.resolve()).as_posix()}"
@@ -99,8 +106,10 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
 
     (site / "robots.txt").write_text("User-agent: *\nDisallow: /\n")
 
+    copied: dict[Path, Path] = {}
+
     def asset(rel: str | None) -> str | None:
-        return _copy_asset(_contained(config_dir, rel), rel, img_dir) if rel else None
+        return _copy_asset(_contained(config_dir, rel), rel, img_dir, copied) if rel else None
 
     occasion_photo = asset(occasion.photo)
 

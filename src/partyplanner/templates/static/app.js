@@ -18,6 +18,7 @@
     me = urlMe;
     meVetted = false;
   } else {
+    if (urlMe) scrubUrlKey();
     try {
       var stored = localStorage.getItem(storageKey) || "";
       if (KEY_RE.test(stored)) me = stored;
@@ -25,10 +26,24 @@
   }
   var isAdmin = false;
 
+  // A malformed or unrecognized ?me= grants nothing, so remove it from the
+  // address bar rather than leaving a dead parameter to be bookmarked or
+  // re-shared as if it were a working edit link.
+  function scrubUrlKey() {
+    var params = new URLSearchParams(location.search);
+    if (!params.has("me")) return;
+    params.delete("me");
+    var query = params.toString();
+    try {
+      history.replaceState(null, "", location.pathname + (query ? "?" + query : "") + location.hash);
+    } catch (err) { /* ignore */ }
+  }
+
   function dropUrlKey() {
     urlMe = "";
     me = "";
     meVetted = true;
+    scrubUrlKey();
     try {
       var fallback = localStorage.getItem(storageKey) || "";
       if (KEY_RE.test(fallback)) me = fallback;
