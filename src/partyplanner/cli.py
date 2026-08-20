@@ -298,6 +298,12 @@ def init_cmd(
 @click.option("--branch", default=None, help="Deployable branch [default: partyplanner.yaml].")
 @click.option("--region", default=None, help="[default: partyplanner.yaml or us-east-1]")
 @click.option("--ref", default=None, help="partyplanner ref to pin [default: partyplanner.yaml].")
+@click.option(
+    "--example",
+    is_flag=True,
+    help="Start from the kitchen-sink example occasion (every config feature"
+    " demonstrated) instead of the minimal stub.",
+)
 @click.option("--force", is_flag=True, help="Regenerate over existing files (keeps occasion.yaml).")
 def new_cmd(
     name: str,
@@ -310,6 +316,7 @@ def new_cmd(
     branch: str | None,
     region: str | None,
     ref: str | None,
+    example: bool,
     force: bool,
 ) -> None:
     """Write occasions/NAME (config stub, Terraform root) and its workflows.
@@ -331,6 +338,7 @@ def new_cmd(
             branch=branch,
             region=region,
             ref=ref,
+            example=example,
             force=force,
         )
     except ConfigError as e:

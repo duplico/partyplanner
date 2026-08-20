@@ -1,6 +1,6 @@
 from click.testing import CliRunner
 
-from conftest import FIXTURES
+from conftest import EXAMPLE
 from partyplanner import aws, config
 from partyplanner.aws import link_items
 from partyplanner.cli import main
@@ -54,7 +54,7 @@ class _FakeTable:
 
 
 def test_sync_links_deletes_removed_and_revoked_without_duplicates(monkeypatch):
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     # a record for a link no longer in the config, plus one for a revoked token
     fake = _FakeTable(
         {"LINK#fixtureaaronfull2222", "LINK#fixtureremovedlink2", "LINK#fixturerevokedtoken2"}
@@ -78,7 +78,7 @@ def test_sync_links_deletes_removed_and_revoked_without_duplicates(monkeypatch):
 
 
 def test_sync_links_replaces_stale_admin_key(monkeypatch):
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     occasion = occasion.model_copy(update={"admin_key": "fixtureadminkey22222"})
     fake = _FakeTable({"ADMIN#fixtureoldadminkey2"})
 
@@ -99,7 +99,7 @@ def test_sync_links_replaces_stale_admin_key(monkeypatch):
 
 
 def test_link_items_admin_key():
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     occasion = occasion.model_copy(update={"admin_key": "fixtureadminkey22222"})
     items = {item["pk"]: item for item in link_items(occasion)}
     admin = items["ADMIN#fixtureadminkey22222"]
@@ -108,7 +108,7 @@ def test_link_items_admin_key():
 
 
 def test_link_items_occasion_config():
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     items = {item["pk"]: item for item in link_items(occasion)}
     cfg = items["CONFIG#OCCASION"]
     assert cfg["sk"] == "META"
@@ -117,7 +117,7 @@ def test_link_items_occasion_config():
 
 
 def test_link_items_allhallowtide():
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     items = {item["pk"]: item for item in link_items(occasion)}
 
     aaron = items["LINK#fixtureaaronfull2222"]

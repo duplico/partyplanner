@@ -161,6 +161,11 @@ it from the repo root:
 partyplanner new bbq-2026 --domain bbq-2026.events.example.com
 ```
 
+Add `--example` to start from the kitchen-sink example occasion (every config
+feature demonstrated: theme, favicon, landing page with a stream embed,
+markdown blurbs, per-event photos/accents, `rsvp: none`, RSVP caps, CSS
+overrides) instead of the minimal stub — trim it down to your event.
+
 Everything else is inferred: the state bucket/region/branch/ref come from
 `partyplanner.yaml`, and the deploy role ARN and zone id come from the applied
 bootstrap root's Terraform outputs (the zone is matched against `--domain`).

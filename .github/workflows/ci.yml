@@ -30,7 +30,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync
       - run: |
-          for fixture in fixtures/*/; do
+          for fixture in fixtures/*/ src/partyplanner/example/; do
             uv run partyplanner validate "$fixture/occasion.yaml"
             uv run partyplanner render "$fixture/occasion.yaml" --out "out/$(basename "$fixture")"
           done

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import FIXTURES
+from conftest import EXAMPLE, FIXTURES
 from partyplanner import config
 from partyplanner.config import ConfigError
 
@@ -16,7 +16,7 @@ def test_load_bbq_fixture():
 
 
 def test_load_allhallowtide_fixture():
-    occasion = config.load(FIXTURES / "allhallowtide" / "occasion.yaml")
+    occasion = config.load(EXAMPLE / "occasion.yaml")
     assert occasion.event_ids() == ["dinner", "crawl", "candy", "party", "stream", "brunch"]
     aaron, chance, generic, stream, visitors = occasion.links
     assert occasion.resolve_scope(aaron) == tuple(occasion.event_ids())
