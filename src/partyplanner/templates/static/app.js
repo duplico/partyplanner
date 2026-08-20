@@ -18,6 +18,7 @@
     me = urlMe;
     meVetted = false;
   } else {
+    if (urlMe) scrubUrlKey();
     try {
       var stored = localStorage.getItem(storageKey) || "";
       if (KEY_RE.test(stored)) me = stored;
@@ -25,10 +26,27 @@
   }
   var isAdmin = false;
 
-  function dropUrlKey() {
+  // A malformed or unrecognized ?me= grants nothing, so remove it from the
+  // address bar rather than leaving a dead parameter to be bookmarked or
+  // re-shared as if it were a working edit link.
+  function scrubUrlKey() {
+    var params = new URLSearchParams(location.search);
+    if (!params.has("me")) return;
+    params.delete("me");
+    var query = params.toString();
+    try {
+      history.replaceState(null, "", location.pathname + (query ? "?" + query : "") + location.hash);
+    } catch (err) { /* ignore */ }
+  }
+
+  // `scrub` removes ?me= from the address bar too; only pass it once the
+  // server has confirmed the key is unknown — a transient load failure must
+  // leave the URL intact so a reload can recover the identity.
+  function dropUrlKey(scrub) {
     urlMe = "";
     me = "";
     meVetted = true;
+    if (scrub) scrubUrlKey();
     try {
       var fallback = localStorage.getItem(storageKey) || "";
       if (KEY_RE.test(fallback)) me = fallback;
@@ -253,7 +271,7 @@
         isAdmin = !!state.admin;
         document.body.classList.toggle("admin", isAdmin);
         if (me && me === urlMe && !isAdmin && !state.known) {
-          dropUrlKey();
+          dropUrlKey(true);
           return refresh();
         }
         meVetted = true;
@@ -297,7 +315,7 @@
         }
       })
       .catch(function () {
-        if (!meVetted) dropUrlKey();
+        if (!meVetted) dropUrlKey(false);
         document.querySelectorAll(".rsvp-list").forEach(function (list) {
           list.textContent = "";
           list.appendChild(el("li", "muted", "Couldn't load RSVPs — try refreshing."));

@@ -49,6 +49,39 @@ def test_assets_with_same_basename_do_not_collide(tmp_path: Path):
     assert "/assets/img/reception/hero.svg" in page
 
 
+def test_leading_assets_segment_not_doubled_in_urls(tmp_path: Path):
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "hero.svg").write_text("<svg>hero</svg>")
+    occasion = _asset_occasion(tmp_path, photo="./assets/hero.svg")
+    render(occasion, tmp_path, tmp_path / "out")
+    img = tmp_path / "out" / "site" / "assets" / "img"
+    assert (img / "hero.svg").read_text() == "<svg>hero</svg>"
+    assert not (img / "assets").exists()
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert "/assets/img/hero.svg" in page
+    assert "/assets/img/assets/" not in page
+
+
+def test_distinct_assets_mapping_to_same_url_rejected(tmp_path: Path):
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "hero.svg").write_text("<svg>one</svg>")
+    (tmp_path / "hero.svg").write_text("<svg>two</svg>")
+    occasion = _asset_occasion(tmp_path, photo="assets/hero.svg")
+    occasion.events[0].photo = "hero.svg"
+    with pytest.raises(ConfigError, match="collides"):
+        render(occasion, tmp_path, tmp_path / "out")
+
+
+def test_same_asset_referenced_twice_renders_once(tmp_path: Path):
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "hero.svg").write_text("<svg>hero</svg>")
+    occasion = _asset_occasion(tmp_path, photo="assets/hero.svg")
+    occasion.events[0].photo = "./assets/hero.svg"
+    render(occasion, tmp_path, tmp_path / "out")
+    page = (tmp_path / "out" / "site" / "i" / "fixtureassettoken222" / "index.html").read_text()
+    assert "/assets/img/hero.svg" in page
+
+
 def test_whitespace_blurb_uses_default_og_description(tmp_path: Path):
     occasion = _asset_occasion(tmp_path, blurb="  \n  ")
     render(occasion, tmp_path, tmp_path / "out")
@@ -205,7 +238,7 @@ def test_render_bbq(tmp_path: Path):
     assert (site / "robots.txt").read_text() == "User-agent: *\nDisallow: /\n"
     assert (site / "assets" / "app.js").exists()
     assert (site / "assets" / "custom.css").exists()
-    assert (site / "assets" / "img" / "assets" / "bbq.svg").exists()
+    assert (site / "assets" / "img" / "bbq.svg").exists()
     assert (site / "i" / "fixturebbqgroupchat2" / "bbq.ics").exists()
     assert not (site / "ics").exists()
 
@@ -215,7 +248,7 @@ def test_render_bbq(tmp_path: Path):
     assert "Saturday, June 20, 2026 · 3:00 PM CDT" in page
     assert "123 Example Ave" in page
     assert '<meta name="robots" content="noindex, nofollow">' in page
-    assert 'og:image" content="https://bbq.example.com/assets/img/assets/bbq.svg"' in page
+    assert 'og:image" content="https://bbq.example.com/assets/img/bbq.svg"' in page
 
     landing = (site / "index.html").read_text()
     assert "ask your host" in landing
