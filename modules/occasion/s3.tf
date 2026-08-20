@@ -32,6 +32,13 @@ data "aws_iam_policy_document" "site_bucket" {
 
   # Without ListBucket, S3 answers missing keys with an opaque 403 instead of
   # a 404, which would bypass the CloudFront 404 -> /error.html mapping.
+  #
+  # ListBucket also means a bare "/" origin request would return a key listing
+  # (which would expose invitation-token paths). Two independent distribution
+  # settings each keep "/" from ever reaching the origin: the viewer-request
+  # function rewrites any "/"-terminated URI to its index.html, and
+  # default_root_object covers the root even with the function detached.
+  # Keep at least one of them if this grant stays.
   statement {
     actions   = ["s3:ListBucket"]
     resources = [aws_s3_bucket.site.arn]
