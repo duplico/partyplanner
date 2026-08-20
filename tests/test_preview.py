@@ -316,6 +316,13 @@ def test_server_serves_site_and_api_end_to_end(tmp_path: Path):
         with pytest.raises(HTTPError) as err:
             urllib.request.urlopen(f"{base}/api/state?t=nosuchtokenatall22")
         assert err.value.code == 400
+
+        # unknown invitation paths get the friendly error page, mirroring
+        # the deployed CloudFront 404 -> /error.html mapping
+        with pytest.raises(HTTPError) as err:
+            urllib.request.urlopen(f"{base}/i/nosuchtokenatall22/")
+        assert err.value.code == 404
+        assert "ask your host for a fresh one" in err.value.read().decode()
     finally:
         server.shutdown()
         server.server_close()

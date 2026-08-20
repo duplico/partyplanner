@@ -154,6 +154,10 @@ def render(occasion: Occasion, config_dir: Path, out_dir: Path) -> None:
             landing_ctx["embed_html"] = _contained(config_dir, occasion.landing.embed).read_text()
     (site / "index.html").write_text(env.get_template("landing.html.j2").render(landing_ctx))
 
+    # Served for unknown paths (bad/revoked tokens included) instead of a raw
+    # origin error; CloudFront maps 404s here, and preview mirrors it.
+    (site / "error.html").write_text(env.get_template("error.html.j2").render(base_ctx))
+
     page_tpl = env.get_template("page.html.j2")
     pages: dict[tuple[str, ...], str] = {}
     rows = []

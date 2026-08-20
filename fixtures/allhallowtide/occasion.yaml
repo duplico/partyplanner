@@ -1,9 +1,14 @@
-# The maximal case: multi-day occasion, scoped links, landing embed, rotation.
-# All tokens and addresses in fixtures are fake.
+# The kitchen sink: this fixture intentionally exercises every language
+# feature (multi-day occasion, theme, favicon, landing blurb/photo/embed,
+# scoped/slugged/prefill links, markdown blurbs, where_url, event photos and
+# accents, rsvp: none, revocation, RSVP caps). Keep it maximal — new config
+# features should land here too. All tokens and addresses are fake.
 title: Allhallowtide 2026
 domain: 2026.allhallowtide.example.com
 timezone: America/Chicago
 photo: ./assets/hero.svg
+favicon: ./assets/favicon.svg
+max_rsvps_per_event: 150
 theme:
   accent: "#d1550f"
   bg: "#f7f2ea"
@@ -12,8 +17,19 @@ theme:
   card: "#fffaf3"
 blurb: |
   Fifteenth year at the house. Thousands of trick-or-treaters. You know the drill.
+
+  ## The weekend
+
+  Three days of *organized chaos*:
+
+  - Friday: dinner, then the **bar crawl**
+  - Saturday: candy crew and the main party
+  - Sunday: recovery brunch
+
+  Questions? [Read last year's recap](https://example.com/recap).
 landing:
   blurb: Watch the live stream of the trick-or-treating madness.
+  photo: ./assets/hero.svg
   embed: ./stream-embed.html
 events:
   - id: dinner
@@ -26,7 +42,9 @@ events:
     when: 2026-10-30 21:00
     end: 2026-10-31 01:00
     where: Downtown, first stop TBA
+    where_url: https://example.com/crawl-route
     blurb: Costumes required. Warp speed optional.
+    photo: ./assets/hero.svg
     accent: "#3fa7f2"
   - id: candy
     title: Candy Crew
