@@ -166,10 +166,10 @@
       });
   }
 
-  // Long lists collapse to the first few rows; the visitor's own rows stay
-  // visible even when they fall past the fold. Expansion is remembered per
-  // event so the auto-refresh after an RSVP doesn't fold the list back up.
-  var LIST_PREVIEW = 8;
+  // The name list stays collapsed behind its counts summary until asked
+  // for — a popular event is a toggle, not a wall of names. Expansion is
+  // remembered per event so the auto-refresh after an RSVP doesn't fold a
+  // list the visitor opened.
   var listExpanded = {};
 
   function renderEvent(eventId, rsvps, more) {
@@ -178,13 +178,12 @@
     var status = document.querySelector('[data-status="' + eventId + '"]');
     if (!list) return;
     list.textContent = "";
-    var collapsible = rsvps.length > LIST_PREVIEW;
-    var collapsed = collapsible && !listExpanded[eventId];
+    var collapsed = !listExpanded[eventId];
     var yes = 0, guests = 0, maybe = 0;
-    rsvps.forEach(function (r, i) {
+    rsvps.forEach(function (r) {
       if (r.response === "yes") { yes += 1; guests += r.party_size; }
       if (r.response === "maybe") maybe += 1 + r.party_size;
-      if (collapsed && i >= LIST_PREVIEW && !r.mine) return;
+      if (collapsed) return;
       var item = el("li");
       var label = r.name + (r.party_size > 0 ? " +" + r.party_size : "");
       item.appendChild(el("span", null, label + " "));
@@ -201,11 +200,15 @@
       }
       list.appendChild(item);
     });
-    if (rsvps.length === 0) list.appendChild(el("li", "muted", "No RSVPs yet — be the first!"));
-    if (!collapsed && more > 0) list.appendChild(el("li", "muted", "+ " + more + " more not shown"));
-    if (collapsible) {
+    if (rsvps.length === 0) {
+      list.appendChild(el("li", "muted", "No RSVPs yet — be the first!"));
+    } else {
+      if (!collapsed && more > 0) list.appendChild(el("li", "muted", "+ " + more + " more not shown"));
       var item = el("li");
-      var toggle = el("button", "toggle", collapsed ? "Show all " + rsvps.length : "Show fewer");
+      var label = collapsed
+        ? "Show " + (rsvps.length + more) + " RSVP" + (rsvps.length + more === 1 ? "" : "s")
+        : "Hide RSVPs";
+      var toggle = el("button", "toggle", label);
       toggle.type = "button";
       toggle.addEventListener("click", function () {
         listExpanded[eventId] = collapsed;
