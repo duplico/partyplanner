@@ -166,16 +166,26 @@
       });
   }
 
+  // The name list stays collapsed behind its counts summary until asked
+  // for — a popular event is a toggle, not a wall of names — but the
+  // visitor's own rows always show, so their RSVP (and its remove button)
+  // is never hidden from them. Expansion is remembered per event so the
+  // auto-refresh after an RSVP doesn't fold a list the visitor opened.
+  var listExpanded = {};
+
   function renderEvent(eventId, rsvps, more) {
     var list = document.querySelector('[data-rsvps="' + eventId + '"]');
     var counts = document.querySelector('[data-counts="' + eventId + '"]');
     var status = document.querySelector('[data-status="' + eventId + '"]');
     if (!list) return;
     list.textContent = "";
-    var yes = 0, guests = 0, maybe = 0;
+    var collapsed = !listExpanded[eventId];
+    var yes = 0, guests = 0, maybe = 0, shown = 0;
     rsvps.forEach(function (r) {
       if (r.response === "yes") { yes += 1; guests += r.party_size; }
       if (r.response === "maybe") maybe += 1 + r.party_size;
+      if (collapsed && !r.mine) return;
+      shown += 1;
       var item = el("li");
       var label = r.name + (r.party_size > 0 ? " +" + r.party_size : "");
       item.appendChild(el("span", null, label + " "));
@@ -192,8 +202,27 @@
       }
       list.appendChild(item);
     });
-    if (rsvps.length === 0) list.appendChild(el("li", "muted", "No RSVPs yet — be the first!"));
-    if (more > 0) list.appendChild(el("li", "muted", "+ " + more + " more not shown"));
+    if (rsvps.length === 0) {
+      list.appendChild(el("li", "muted", "No RSVPs yet — be the first!"));
+    } else {
+      if (!collapsed && more > 0) list.appendChild(el("li", "muted", "+ more not shown"));
+      // No toggle when everything is already on screen (all rows are the
+      // visitor's own and nothing was truncated).
+      if (!collapsed || shown < rsvps.length || more > 0) {
+        var item = el("li");
+        var label = collapsed
+          ? "Show " + rsvps.length + (more > 0 ? "+" : "") + " RSVP" + (rsvps.length === 1 && more === 0 ? "" : "s")
+          : "Hide RSVPs";
+        var toggle = el("button", "toggle", label);
+        toggle.type = "button";
+        toggle.addEventListener("click", function () {
+          listExpanded[eventId] = collapsed;
+          renderEvent(eventId, rsvps, more);
+        });
+        item.appendChild(toggle);
+        list.appendChild(item);
+      }
+    }
     if (counts) {
       var parts = [];
       parts.push(yes + " yes" + (guests > 0 ? " (+" + guests + " guests)" : ""));
