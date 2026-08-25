@@ -203,10 +203,10 @@
     if (rsvps.length === 0) {
       list.appendChild(el("li", "muted", "No RSVPs yet — be the first!"));
     } else {
-      if (!collapsed && more > 0) list.appendChild(el("li", "muted", "+ " + more + " more not shown"));
+      if (!collapsed && more > 0) list.appendChild(el("li", "muted", "+ more not shown"));
       var item = el("li");
       var label = collapsed
-        ? "Show " + (rsvps.length + more) + " RSVP" + (rsvps.length + more === 1 ? "" : "s")
+        ? "Show " + rsvps.length + (more > 0 ? "+" : "") + " RSVP" + (rsvps.length === 1 && more === 0 ? "" : "s")
         : "Hide RSVPs";
       var toggle = el("button", "toggle", label);
       toggle.type = "button";
