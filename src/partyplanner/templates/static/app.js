@@ -166,16 +166,25 @@
       });
   }
 
+  // Long lists collapse to the first few rows; the visitor's own rows stay
+  // visible even when they fall past the fold. Expansion is remembered per
+  // event so the auto-refresh after an RSVP doesn't fold the list back up.
+  var LIST_PREVIEW = 8;
+  var listExpanded = {};
+
   function renderEvent(eventId, rsvps, more) {
     var list = document.querySelector('[data-rsvps="' + eventId + '"]');
     var counts = document.querySelector('[data-counts="' + eventId + '"]');
     var status = document.querySelector('[data-status="' + eventId + '"]');
     if (!list) return;
     list.textContent = "";
+    var collapsible = rsvps.length > LIST_PREVIEW;
+    var collapsed = collapsible && !listExpanded[eventId];
     var yes = 0, guests = 0, maybe = 0;
-    rsvps.forEach(function (r) {
+    rsvps.forEach(function (r, i) {
       if (r.response === "yes") { yes += 1; guests += r.party_size; }
       if (r.response === "maybe") maybe += 1 + r.party_size;
+      if (collapsed && i >= LIST_PREVIEW && !r.mine) return;
       var item = el("li");
       var label = r.name + (r.party_size > 0 ? " +" + r.party_size : "");
       item.appendChild(el("span", null, label + " "));
@@ -193,7 +202,18 @@
       list.appendChild(item);
     });
     if (rsvps.length === 0) list.appendChild(el("li", "muted", "No RSVPs yet — be the first!"));
-    if (more > 0) list.appendChild(el("li", "muted", "+ " + more + " more not shown"));
+    if (!collapsed && more > 0) list.appendChild(el("li", "muted", "+ " + more + " more not shown"));
+    if (collapsible) {
+      var item = el("li");
+      var toggle = el("button", "toggle", collapsed ? "Show all " + rsvps.length : "Show fewer");
+      toggle.type = "button";
+      toggle.addEventListener("click", function () {
+        listExpanded[eventId] = collapsed;
+        renderEvent(eventId, rsvps, more);
+      });
+      item.appendChild(toggle);
+      list.appendChild(item);
+    }
     if (counts) {
       var parts = [];
       parts.push(yes + " yes" + (guests > 0 ? " (+" + guests + " guests)" : ""));
