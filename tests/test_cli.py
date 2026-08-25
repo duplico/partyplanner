@@ -77,6 +77,38 @@ def test_links_output_aligns_urls_in_a_column(tmp_path: Path, monkeypatch):
     assert "\t" not in result.output
 
 
+def test_links_admin_appends_key_to_every_url(tmp_path: Path, monkeypatch):
+    _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    assert runner.invoke(main, ["link", "add", "--note", "friends"]).exit_code == 0
+    assert runner.invoke(main, ["link", "add", "--note", "family"]).exit_code == 0
+    first = runner.invoke(main, ["links", "--admin"])
+    assert first.exit_code == 0
+    assert "minted an admin key" in first.output
+    urls = [line.split()[-1] for line in first.output.splitlines() if "https://" in line]
+    assert len(urls) == 2
+    keys = {url.rsplit("?me=", 1)[1] for url in urls}
+    assert len(keys) == 1
+    key = keys.pop()
+    assert key in (tmp_path / ".links.yaml").read_text()
+    second = runner.invoke(main, ["link", "list", "--admin"])
+    assert second.exit_code == 0
+    assert "minted" not in second.output
+    assert second.output.count(f"?me={key}") == 2
+
+
+def test_links_without_admin_flag_omits_key(tmp_path: Path, monkeypatch):
+    _write_config(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    assert runner.invoke(main, ["link", "add", "--note", "friends"]).exit_code == 0
+    assert runner.invoke(main, ["links", "--admin"]).exit_code == 0
+    result = runner.invoke(main, ["links"])
+    assert result.exit_code == 0
+    assert "?me=" not in result.output
+
+
 def test_link_revoke_takes_token_first(tmp_path: Path, monkeypatch):
     _write_config(tmp_path)
     monkeypatch.chdir(tmp_path)

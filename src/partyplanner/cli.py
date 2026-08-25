@@ -106,22 +106,44 @@ def preview(config_path: Path, port: int, host: str, open_browser: bool) -> None
         raise click.ClickException(str(e)) from e
 
 
-def _print_links(occasion) -> None:
+def _print_links(occasion, admin_key: str | None = None) -> None:
     rows = []
+    suffix = f"?me={admin_key}" if admin_key else ""
     for link in occasion.links:
         label = link.prefill_name or link.note or "(unlabeled)"
-        url = f"https://{occasion.domain}/i/{link.token}/" if link.token else "(no token yet)"
-        rows.append((label, url))
+        url = f"https://{occasion.domain}/i/{link.token}/{suffix}" if link.token else ""
+        rows.append((label, url or "(no token yet)"))
     width = max((len(label) for label, _ in rows), default=0)
     for label, url in rows:
         click.echo(f"{label:<{width}}  {url}")
 
 
+def _links_command(config_path: Path, admin: bool) -> None:
+    occasion = _load(config_path)
+    admin_key = None
+    if admin:
+        try:
+            admin_key, minted = config_mod.ensure_admin_key(config_path)
+        except ConfigError as e:
+            raise click.ClickException(str(e)) from e
+        if minted:
+            click.echo("minted an admin key (commit .links.yaml and redeploy to activate it)")
+    _print_links(occasion, admin_key=admin_key)
+
+
+_admin_option = click.option(
+    "--admin",
+    is_flag=True,
+    help="Append the occasion's admin key (?me=...) to every URL; keep the output private.",
+)
+
+
 @main.command()
 @_config_argument
-def links(config_path: Path) -> None:
+@_admin_option
+def links(config_path: Path, admin: bool) -> None:
     """Print the invitation links for an occasion."""
-    _print_links(_load(config_path))
+    _links_command(config_path, admin)
 
 
 @main.group()
@@ -204,9 +226,10 @@ def link_revoke(token: str, config_path: Path) -> None:
 
 @link.command("list")
 @_config_argument
-def link_list(config_path: Path) -> None:
+@_admin_option
+def link_list(config_path: Path, admin: bool) -> None:
     """Print the invitation links for an occasion."""
-    _print_links(_load(config_path))
+    _links_command(config_path, admin)
 
 
 @main.command("sync-links")
